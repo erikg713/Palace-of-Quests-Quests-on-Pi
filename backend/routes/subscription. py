@@ -1,0 +1,26 @@
+from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from utils.pi_payments import process_subscription_payment
+from models.user import User, db
+from datetime import datetime, timedelta
+
+subscription_bp = Blueprint("subscription", __name__)
+
+@subscription_bp.route("/purchase", methods=["POST"])
+@jwt_required()
+def purchase_subscription():
+    identity = get_jwt_identity()
+    user = User.query.get(identity["id"])
+
+    if user.premium_until and user.premium_until > datetime.utcnow():
+        return jsonify({"message": "Already a premium member"}), 400
+
+    payment_data = request.json
+    success = process_subscription_payment(user.id, payment_data["transaction_id"])
+
+    if not success:
+        return jsonify({"message": "Payment failed"}), 400
+
+    user.premium_until = datetime.utcnow() + timedelta(days=365)
+    db.session.commit()
+    return jsonify({"message": "Premium subscription activated"}), 200
