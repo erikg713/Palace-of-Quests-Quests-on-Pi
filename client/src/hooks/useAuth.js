@@ -5,8 +5,8 @@ import {
   loginUser,
   logoutUser,
   updateUserProfile,
-  RootState,
-} from '../store';
+} from '../store/actions/authActions'; // Update the path as per your project structure
+import { RootState } from '../store'; // Update the path as per your project structure
 
 export const useAuth = () => {
   const dispatch = useDispatch();
@@ -43,26 +43,3 @@ export const useAuth = () => {
     updateProfile,
   };
 };
-import { useState, useEffect } from "react";
-
-const useAuth = () => {
-    const [user, setUser] = useState(null);
-
-    useEffect(() => {
-        const fetchUser = async () => {
-            const token = localStorage.getItem("authToken");
-            if (token) {
-                // Simulate API call to fetch user details
-                const userDetails = await fetch("/api/user", {
-                    headers: { Authorization: `Bearer ${token}` },
-                }).then((res) => res.json());
-                setUser(userDetails);
-            }
-        };
-        fetchUser();
-    }, []);
-
-    return user;
-};
-
-export default useAuth;
