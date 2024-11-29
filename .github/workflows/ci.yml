@@ -1,0 +1,65 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Checkout code
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Set up Node.js environment
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    # Install dependencies
+    - name: Install dependencies
+      run: npm install
+
+    # Run unit tests
+    - name: Run unit tests
+      run: npm test -- --coverage
+
+    # Build the project
+    - name: Build project
+      run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+    # Checkout code
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Set up Node.js environment
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    # Install dependencies
+    - name: Install dependencies
+      run: npm install
+
+    # Start application for E2E tests
+    - name: Start application
+      run: npm start &
+      env:
+        CI: true
+
+    # Run Cypress tests
+    - name: Run Cypress E2E tests
+      run: npx cypress run
