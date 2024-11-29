@@ -1,0 +1,53 @@
+.container {
+  padding: 1rem;
+}
+
+h2 {
+  color: #6200ee;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+li {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}
+
+button {
+  background-color: #6200ee;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #5a00d1;
+}
+
+.premium-shop {
+  padding: 1rem;
+  background-color: #f7f7f7;
+}
+
+.premium-shop h2 {
+  color: #6200ee;
+  text-align: center;
+}
+
+.premium-shop ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+.premium-shop li {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;

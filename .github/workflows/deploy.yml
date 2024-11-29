@@ -1,0 +1,50 @@
+name: CI/CD Pipeline for Palace of Quests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: Dockerfile
+          tags: ${{ secrets.DOCKER_USERNAME }}/palace_of_quests_backend:latest
+          push: true
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: client/Dockerfile
+          tags: ${{ secrets.DOCKER_USERNAME }}/palace_of_quests_frontend:latest
+          push: true
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Production (DigitalOcean, AWS, etc.)
+        run: |
+          # This step would contain deployment commands
+          # For example, use `docker compose up` on a remote server or deploy to a Kubernetes cluster
