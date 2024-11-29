@@ -1,5 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 
+// Exporting authSlice for potential use elsewhere
 export const authSlice = createSlice({
   name: 'auth',
   initialState: {
@@ -7,7 +8,7 @@ export const authSlice = createSlice({
     token: null,
   },
   reducers: {
-    // Using regular function syntax for consistency
+    // Using function declarations
     login(state, action) {
       state.user = action.payload.user;
       state.token = action.payload.token;
@@ -19,8 +20,8 @@ export const authSlice = createSlice({
   },
 });
 
-// Export actions for use in components
+// Exporting actions
 export const { login, logout } = authSlice.actions;
 
-// Export the reducer to be included in the store
+// Exporting reducer as default export
 export default authSlice.reducer;
