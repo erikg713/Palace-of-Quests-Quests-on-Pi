@@ -35,3 +35,5 @@ def create_app(config_name="development"):
     migrate.init_app(app, db)
 
     return app
+from app.routes import auth as auth_blueprint
+app.register_blueprint(auth_blueprint, url_prefix='/auth')
