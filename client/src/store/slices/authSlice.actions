@@ -1,0 +1,2 @@
+dispatch(login({ user: someUserData, token: someToken }));
+dispatch(logout());
