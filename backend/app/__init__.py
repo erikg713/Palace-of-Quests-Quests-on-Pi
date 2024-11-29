@@ -37,3 +37,5 @@ def create_app(config_name="development"):
     return app
 from app.routes import auth as auth_blueprint
 app.register_blueprint(auth_blueprint, url_prefix='/auth')
+from app.routes import quest as quest_blueprint
+app.register_blueprint(quest_blueprint, url_prefix='/api')
