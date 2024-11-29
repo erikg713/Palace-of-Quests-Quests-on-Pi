@@ -42,3 +42,68 @@ def home():
 @main.route("/status")
 def status():
     return jsonify({"status": "running", "service": "backend"})
+from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from app.models import db, Quest, User
+
+quest = Blueprint('quest', __name__)
+
+@quest.route('/quests', methods=['POST'])
+@jwt_required()
+def create_quest():
+    user_id = get_jwt_identity()
+    data = request.get_json()
+    new_quest = Quest(
+        title=data['title'],
+        description=data['description'],
+        reward=data['reward'],
+        created_by=user_id
+    )
+    db.session.add(new_quest)
+    db.session.commit()
+    return jsonify({"message": "Quest created successfully"}), 201
+
+@quest.route('/quests', methods=['GET'])
+def get_all_quests():
+    quests = Quest.query.all()
+    output = []
+    for quest in quests:
+        quest_data = {
+            "id": quest.id,
+            "title": quest.title,
+            "description": quest.description,
+            "reward": quest.reward,
+            "created_at": quest.created_at
+        }
+        output.append(quest_data)
+    return jsonify({"quests": output}), 200
+
+@quest.route('/quests/<int:quest_id>', methods=['GET'])
+def get_single_quest(quest_id):
+    quest = Quest.query.get_or_404(quest_id)
+    return jsonify({
+        "id": quest.id,
+        "title": quest.title,
+        "description": quest.description,
+        "reward": quest.reward,
+        "created_at": quest.created_at
+    }), 200
+
+@quest.route('/quests/<int:quest_id>', methods=['PUT'])
+@jwt_required()
+def update_quest(quest_id):
+    user_id = get_jwt_identity()
+    quest = Quest.query.get_or_404(quest_id)
+    if quest.created_by != user_id:
+        return jsonify({"message": "Unauthorized"}), 403
+
+    data = request.get_json()
+    quest.title = data['title']
+    quest.description = data['description']
+    quest.reward = data['reward']
+    db.session.commit()
+    return jsonify({"message": "Quest updated successfully"}), 200
+
+@quest.route('/quests/<int:quest_id>', methods=['DELETE'])
+@jwt_required()
+def delete_quest(quest
