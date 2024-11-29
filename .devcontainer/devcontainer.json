@@ -1,0 +1,35 @@
+{
+  "name": "Palace of Quests",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+  "extensions": [
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-azuretools.vscode-docker",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "mtxr.sqltools",
+    "csstools.postcss",
+    "github.vscode-pull-request-github"
+  ],
+  "settings": {
+    "python.pythonPath": "/usr/local/bin/python",
+    "python.formatting.provider": "black",
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "eslint.format.enable": true,
+    "editor.formatOnSave": true
+  },
+  "postCreateCommand": "pip install -r requirements.txt && npm install --prefix client",
+  "forwardPorts": [5000, 3000, 5432],
+  "remoteEnv": {
+    "FLASK_ENV": "development",
+    "DATABASE_URL": "postgresql://postgres:password@db:5432/palace_of_quests"
+  },
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/root/.ssh,type=bind,consistency=cached"
+  ],
+  "runServices": ["app", "db"],
+  "shutdownAction": "stopCompose"
+}
