@@ -1,1 +1,25 @@
-gunicorn -w 4 -b 0.0.0.0:5000 wsgi:app
+# Flask Core
+Flask==2.2.5                     # Web framework
+Flask-SQLAlchemy==2.5.1          # Database ORM
+Flask-JWT-Extended==4.3.1        # JWT-based authentication
+Flask-Cors==3.0.10               # Enable CORS for API endpoints
+Flask-Migrate==4.0.4             # Database migrations
+
+# Database Driver
+psycopg2-binary==2.9.8           # PostgreSQL driver for Python
+
+# Security and Environment Management
+python-dotenv==0.19.0            # Manage environment variables
+cryptography==41.0.1             # Encryption library for secure handling of secrets
+
+# Deployment
+gunicorn==22.0.0                 # WSGI HTTP Server for production
+
+# Development Tools
+black==23.9.1                    # Code formatter
+pylint==2.17.4                   # Linter for Python
+pytest==7.4.2                    # Unit testing framework
+pytest-flask==1.2.0              # Pytest plugin for testing Flask apps
+
+# Miscellaneous
+Werkzeug==3.0.3                  # WSGI utility library
