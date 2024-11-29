@@ -1,33 +1,17 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
-import reportWebVitals from "./reportWebVitals";
+import { Provider } from "react-redux"; // Redux Provider
+import store from "./store"; // Redux store
+import App from "./App"; // Root App component
+import "./styles/globals.css"; // Global styles (optional)
 
+// Initialize the React application and wrap it with the Redux provider
 const root = ReactDOM.createRoot(document.getElementById("root"));
+
 root.render(
     <React.StrictMode>
-        <App />
+        <Provider store={store}>
+            <App />
+        </Provider>
     </React.StrictMode>
-);
-
-reportWebVitals();
-import { configureStore } from "@reduxjs/toolkit";
-import userReducer from "./userSlice";
-
-export const store = configureStore({
-    reducer: {
-        user: userReducer,
-    },
-});
-import React from "react";
-import ReactDOM from "react-dom";
-import { Provider } from "react-redux";
-import store from "./store";
-import App from "./App";
-
-ReactDOM.render(
-    <Provider store={store}>
-        <App />
-    </Provider>,
-    document.getElementById("root")
 );
