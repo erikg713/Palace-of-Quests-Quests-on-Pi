@@ -20,3 +20,18 @@ def create_app(config_name="development"):
     app.register_blueprint(main_blueprint)
 
     return app
+from flask_migrate import Migrate
+
+migrate = Migrate()
+
+def create_app(config_name="development"):
+    app = Flask(__name__)
+    
+    # Load configuration
+    app.config.from_object("app.config.DevelopmentConfig")
+    
+    # Initialize extensions
+    db.init_app(app)
+    migrate.init_app(app, db)
+
+    return app
