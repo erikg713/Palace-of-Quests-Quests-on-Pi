@@ -1,1 +1,16 @@
+import React from 'react';
+import background from './assets/images/background.jpg';
 
+const App = () => {
+  const styles = {
+    backgroundImage: `url(${background})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    height: '100vh',
+    width: '100%',
+  };
+
+  return <div style={styles}></div>;
+};
+
+export default App;
