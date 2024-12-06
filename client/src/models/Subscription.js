@@ -12,3 +12,13 @@ export class Subscription {
     return `${currency}${this.price}`;
   }
 }
+
+import { Subscription } from '../models/Subscription';
+
+const premium = new Subscription('Premium', 9.99, '1 year', [
+  'Access to premium levels',
+  'Priority support',
+  'Exclusive rewards',
+]);
+
+console.log(premium.getFormattedPrice()); // "$9.99"
