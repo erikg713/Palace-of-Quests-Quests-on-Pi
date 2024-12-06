@@ -75,3 +75,13 @@ export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
 
 export default store;
+import { configureStore } from '@reduxjs/toolkit';
+import questsReducer from './questsSlice';
+
+const store = configureStore({
+  reducer: {
+    quests: questsReducer,
+  },
+});
+
+export default store;
