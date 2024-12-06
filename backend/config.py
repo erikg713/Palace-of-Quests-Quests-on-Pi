@@ -1,5 +1,10 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 class Config:
-    SECRET_KEY = "your-secret-key"
-    SQLALCHEMY_DATABASE_URI = "postgresql://postgres:password@db:5432/palace_of_quests"
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-    JWT_SECRET_KEY = "your-jwt-secret-key"
+    DEBUG = os.getenv("DEBUG", "False") == "True"
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///default.db")
+    SECRET_KEY = os.getenv("SECRET_KEY", "default-secret")
+    API_BASE_URL = os.getenv("API_BASE_URL", "https://api.example.com")
