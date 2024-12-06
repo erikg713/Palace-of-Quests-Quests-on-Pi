@@ -128,3 +128,21 @@ def update_quest(quest_id):
 @quest.route('/quests/<int:quest_id>', methods=['DELETE'])
 @jwt_required()
 def delete_quest(quest
+@auth.route('/quests/reward', methods=['POST'])
+@jwt_required()
+def reward_user():
+    user_id = get_jwt_identity()
+    data = request.get_json()
+
+    user = User.query.get(user_id)
+    quest = Quest.query.get(data['quest_id'])
+    if not user or not quest:
+        return jsonify({"message": "Invalid user or quest"}), 400
+
+    # Distribute reward if quest is completed
+    if data.get('completed', False):
+        user.add_xp(quest.reward)
+        db.session.commit()
+        return jsonify({"message": f"Reward added! New level: {user.level}, XP: {user.xp}"}), 200
+
+    return jsonify({"message": "Quest not completed"}), 400
