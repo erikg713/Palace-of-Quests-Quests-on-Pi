@@ -11,3 +11,8 @@ export class Reward {
     return `${this.value} ${this.type} - ${this.description || 'No description'}`;
   }
 }
+
+import { Reward } from '../models/Reward';
+
+const reward = new Reward('XP', 100, 'Bonus for completing a quest');
+console.log(reward.getDetails()); // "100 XP - Bonus for completing a quest"
