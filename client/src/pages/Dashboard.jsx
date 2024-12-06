@@ -53,3 +53,29 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+import React, { useEffect, useState } from 'react';
+import QuestProgress from '../components/QuestProgress';
+import axios from '../services/api';
+
+const Dashboard = () => {
+  const [quests, setQuests] = useState([]);
+
+  useEffect(() => {
+    axios.get('/quests').then((res) => setQuests(res.data));
+  }, []);
+
+  return (
+    <div>
+      <h1>Your Quests</h1>
+      {quests.map((quest) => (
+        <div key={quest.id}>
+          <h2>{quest.title}</h2>
+          <QuestProgress progress={quest.progress} />
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export default Dashboard;
