@@ -37,3 +37,19 @@ class QuestProgress(db.Model):
 
     def __repr__(self):
         return f"<QuestProgress User {self.user_id}, Quest {self.quest_id}>"
+
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), nullable=False, unique=True)
+    email = db.Column(db.String(120), nullable=False, unique=True)
+    password = db.Column(db.String(200), nullable=False)
+    level = db.Column(db.Integer, default=1)
+    xp = db.Column(db.Float, default=0.0)  # Experience points
+    rewards = db.Column(db.Float, default=0.0)  # Total rewards earned
+
+    def add_xp(self, xp_gained):
+        self.xp += xp_gained
+        if self.xp >= 100:  # Example: Level up after 100 XP
+            self.level += 1
+            self.xp = 0
