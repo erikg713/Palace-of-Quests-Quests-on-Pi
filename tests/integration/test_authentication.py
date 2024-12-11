@@ -22,8 +22,6 @@ def test_token_expiration(client, init_database):
     protected_response = client.get('/api/protected', headers={"Authorization": f"Bearer {token}"})
     assert protected_response.status_code == 401
 
-import json
-
 def test_login(client):
     login_data = {"username": "test_user", "password": "password123"}
     response = client.post('/api/auth/login', data=json.dumps(login_data), content_type='application/json')
