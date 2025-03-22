@@ -1,5 +1,49 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+import uuid
+
+db = SQLAlchemy()
+
+# User Model
+class User(db.Model):
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    pi_wallet = db.Column(db.String(100), unique=True, nullable=False)
+    balance = db.Column(db.Float, default=0.0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# Quest Model
+class Quest(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    reward = db.Column(db.Float, nullable=False)  # Pi reward amount
+    level_required = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# Marketplace Model
+class Item(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    price = db.Column(db.Float, nullable=False)
+    seller_id = db.Column(db.String(36), db.ForeignKey('user.id'), nullable=False)
+    buyer_id = db.Column(db.String(36), db.ForeignKey('user.id'), nullable=True)
+    status = db.Column(db.String(20), default='available')  # available, sold, pending
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# Transactions Model
+class Transaction(db.Model):
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    sender_id = db.Column(db.String(36), db.ForeignKey('user.id'), nullable=False)
+    receiver_id = db.Column(db.String(36), db.ForeignKey('user.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    status = db.Column(db.String(20), default='pending')  # pending, completed, failed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
 
 db = SQLAlchemy()
 
