@@ -246,70 +246,18 @@ curl -X POST http://localhost:5000/user_quests/update \
 
 **Expected Response**
 {"message": "User quest progress updated", "user_quest_id": 1}
-Mark Quest as Completed
 
-bash
-Copy
-Edit
+#### Mark Quest as Completed ####
+
 curl -X POST http://localhost:5000/user_quests/update \
   -H "Content-Type: application/json" \
   -d '{"user_quest_id": 1, "progress": 100}'
 Expected Response:
-
-json
-Copy
-Edit
 {"message": "User quest progress updated", "user_quest_id": 1}
 Retrieve All User Quests
 
-bash
-Copy
-Edit
 curl -X GET "http://localhost:5000/user_quests/?user_id=some-user-id"
 Expected Response:
-
-json
-Copy
-Edit
-{
-  "user_id": "some-user-id",
-  "quests": [
-    {
-      "user_quest_id": 1,
-      "quest_id": 1,
-      "progress": 100,
-      "status": "completed",
-      "started_at": "2025-03-21T12:34:56.789123",
-      "completed_at": "2025-03-21T12:45:00.123456"
-    },
-    ...
-  ]
-}
-Mark Quest as Completed
-
-bash
-Copy
-Edit
-curl -X POST http://localhost:5000/user_quests/update \
-  -H "Content-Type: application/json" \
-  -d '{"user_quest_id": 1, "progress": 100}'
-Expected Response:
-
-json
-Copy
-Edit
-{"message": "User quest progress updated", "user_quest_id": 1}
-Retrieve All User Quests
-
-bash
-Copy
-Edit
-curl -X GET "http://localhost:5000/user_quests/?user_id=some-user-id"
-Expected Response:
-
-json
-Copy
-Edit
 {
   "user_id": "some-user-id",
   "quests": [
@@ -325,21 +273,30 @@ Edit
   ]
 }
 
+#### Mark Quest as Completed ####
 
-### Customize
-- Replace placeholders like `your-username` and `your-email@example.com` with your details.
-- Add badges (e.g., build status, license) if applicable.
-- Update any specific project links or information.
-```
+curl -X POST http://localhost:5000/user_quests/update \
+  -H "Content-Type: application/json" \
+  -d '{"user_quest_id": 1, "progress": 100}'
+Expected Response:
 
-### Summary of Optimizations:
+json
+Copy
+Edit
+{"message": "User quest progress updated", "user_quest_id": 1}
 
-- Improved readability with bullet points and tables.
-- Added detailed explanations for each section.
-- Structured the `README.md` file for better organization.
-- Included prerequisites and troubleshooting tips in the installation section.
-- Provided example requests and responses for API endpoints.
-- Enhanced the contributing section with clear guidelines.
-- Updated the contact information section.
+#### Retrieve All User Quests ####
 
-You can update your `README.md` file with these suggested changes to improve its clarity, readability, and overall quality.
+curl -X GET "http://localhost:5000/user_quests/?user_id=some-user-id"
+Expected Response:
+{
+  "user_id": "some-user-id",
+  "quests": [
+    {
+      "user_quest_id": 1,
+      "quest_id": 1,
+      "progress": 100,
+      "status": "completed",
+      "started_at": "2025-03-21T12:34:56.789123",
+      "completed_at": "2025-03-21T12:45:00.123456"
+    },
