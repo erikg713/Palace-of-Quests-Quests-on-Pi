@@ -3,6 +3,21 @@ from datetime import datetime
 import uuid
 from datetime import datetime
 import uuid
+# Existing imports
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
+import uuid
+
+db = SQLAlchemy()
+
+# Updated User Model with role
+class User(db.Model):
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    pi_wallet = db.Column(db.String(100), unique=True, nullable=False)
+    balance = db.Column(db.Float, default=0.0)
+    role = db.Column(db.String(20), default='user')  # New field: 'user' or 'admin'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 # ... existing models ...
 
