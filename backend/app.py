@@ -6,6 +6,11 @@ from dotenv import load_dotenv
 import os
 # Import user quests blueprint
 from routes.user_quests import user_quests_bp
+# Import the admin blueprint
+from routes.admin import admin_bp
+
+# Register the blueprint with a URL prefix, e.g., /admin
+app.register_blueprint(admin_bp, url_prefix='/admin')
 
 # Register the blueprint with a URL prefix, e.g., /user_quests
 app.register_blueprint(user_quests_bp, url_prefix='/user_quests')
