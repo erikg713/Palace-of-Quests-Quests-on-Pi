@@ -108,6 +108,21 @@ backend/
 │── package.json           # Node.js dependencies
 
 
+🚀 API Endpoints Breakdown
+Feature	Endpoint	Method	Description
+Auth	/auth/login	POST	Logs in with Pi Network
+/auth/register	POST	Registers a new player
+Quests	/quests	GET	Fetch all available quests
+/quests/start	POST	Start a new quest
+/quests/progress	POST	Update quest progress
+Marketplace	/marketplace/list	POST	List an item for sale
+/marketplace/buy	POST	Buy an item from a player
+/marketplace/trade	POST	Secure trade via escrow
+Economy	/economy/balance	GET	Fetch player's Pi balance
+/economy/earnings	GET	Track game revenue
+Users	/users/inventory	GET	Fetch user inventory
+
+
 ## 📦 Installation
 
 ### **Prerequisites**
