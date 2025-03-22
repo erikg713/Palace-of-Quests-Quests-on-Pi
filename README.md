@@ -232,4 +232,7 @@ For questions or support, please email: your-email@example.com
 - Replace placeholders like `your-username` and `your-email@example.com` with your details.
 - Add badges (e.g., build status, license) if applicable.
 - Update any specific project links or information.
-
+pip install flask-migrate
+flask db init           # Initialize migrations folder
+flask db migrate -m "Initial migration"  # Generate migration scripts
+flask db upgrade       # Apply migrations to database
