@@ -1,9 +1,9 @@
-import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_migrate import Migrate
 from dotenv import load_dotenv
+import os
 
 # Load environment variables
 load_dotenv()
@@ -23,9 +23,13 @@ migrate = Migrate(app, db)
 from middleware.logger import setup_logging
 setup_logging(app)
 
-# Set up rate limiter
+# Set up rate limiter middleware
 from middleware.rate_limiter import init_rate_limiter
 init_rate_limiter(app)
+
+# Register global error handlers
+from middleware.error_handler import register_error_handlers
+register_error_handlers(app)
 
 # Ensure required dependencies are installed
 try:
@@ -46,6 +50,7 @@ from routes.transactions import transactions_bp
 from routes.user_quests import user_quests_bp
 from routes.admin import admin_bp
 from routes.analytics import analytics_bp
+from routes.health import health_bp  # Health check endpoint
 
 app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(quests_bp, url_prefix='/quests')
@@ -56,8 +61,7 @@ app.register_blueprint(transactions_bp, url_prefix='/transactions')
 app.register_blueprint(user_quests_bp, url_prefix='/user_quests')
 app.register_blueprint(admin_bp, url_prefix='/admin')
 app.register_blueprint(analytics_bp, url_prefix='/analytics')
+app.register_blueprint(health_bp, url_prefix='/health')
 
 if __name__ == '__main__':
     app.run(debug=True)
-
-
