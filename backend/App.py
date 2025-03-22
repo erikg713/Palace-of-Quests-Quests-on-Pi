@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
+from flask_migrate import Migrate
 from dotenv import load_dotenv
 import os
 
@@ -16,6 +17,16 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql+ps
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)  # Enable migrations
+
+# Ensure required dependencies are installed
+try:
+    import psycopg2
+except ImportError:
+    raise ImportError("psycopg2 is not installed. Please install it using 'pip install psycopg2-binary'")
+
+# Import models
+from models import User, Quest, Item, Transaction  # Import DB models
 
 # Import and register blueprints
 from routes.auth import auth_bp
@@ -32,3 +43,6 @@ app.register_blueprint(users_bp, url_prefix='/users')
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+
