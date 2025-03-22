@@ -1,4 +1,4 @@
-# Palace of Quests (Pi Quest)
+### Palace of Quests - Quests-for-Pi ###
 
 **Palace of Quests (Pi Quest)** is a Web3-powered metaverse game built on the Pi Network. This engaging platform offers players the chance to explore, level up, and earn rewards in an immersive virtual world. Designed with scalability, security, and innovation in mind, the game incorporates blockchain technology, decentralized transactions, and a tiered subscription model for premium features.
 
@@ -227,6 +227,81 @@ This project is licensed under the MIT License. See the LICENSE file for details
 📧 Contact
 
 For questions or support, please email: your-email@example.com
+
+### TESTS ###
+Test Cases
+Here are some sample test cases using curl that you can run in your terminal to test these endpoints:
+
+Registration Success
+
+bash
+Copy
+Edit
+curl -X POST http://localhost:5000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "player1", "pi_wallet": "pi_wallet_123"}'
+Expected Response:
+
+json
+Copy
+Edit
+{"message": "User registered successfully", "user_id": "<generated_id>"}
+Registration Missing Fields
+
+bash
+Copy
+Edit
+curl -X POST http://localhost:5000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "player1"}'
+Expected Response:
+
+json
+Copy
+Edit
+{"error": "Missing required fields: username and pi_wallet"}
+Login Success (After registration, use the same pi_wallet to log in)
+
+bash
+Copy
+Edit
+curl -X POST http://localhost:5000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"pi_wallet": "pi_wallet_123"}'
+Expected Response:
+
+json
+Copy
+Edit
+{"message": "Login successful", "token": "<JWT token>"}
+Login Missing Field
+
+bash
+Copy
+Edit
+curl -X POST http://localhost:5000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{}'
+Expected Response:
+
+json
+Copy
+Edit
+{"error": "Missing required field: pi_wallet"}
+Login User Not Found
+
+bash
+Copy
+Edit
+curl -X POST http://localhost:5000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"pi_wallet": "non_existent_wallet"}'
+Expected Response:
+
+json
+Copy
+Edit
+{"error": "User not found"}
 
 ### Customize
 - Replace placeholders like `your-username` and `your-email@example.com` with your details.
