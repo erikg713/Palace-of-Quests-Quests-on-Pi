@@ -2,6 +2,45 @@
 
 **Palace of Quests (Pi Quest)** is a Web3-powered metaverse game built on the Pi Network. This engaging platform offers players the chance to explore, level up, and earn rewards in an immersive virtual world. Designed with scalability, security, and innovation in mind, the game incorporates blockchain technology, decentralized transactions, and a tiered subscription model for premium features.
 
+Frontend (React + Three.js for Metaverse UI)
+React (Next.js or CRA): Core framework for UI and game interactions.
+
+Three.js / Babylon.js: For rendering the game world and character interactions.
+
+Web3.js / Pi Network SDK: Handling blockchain transactions.
+
+Redux / Zustand: State management for inventory, quests, and economy.
+
+Backend (Flask + Node.js for APIs & Game Logic)
+Flask (Python) + Node.js (Express.js): Flask for structured logic, Node.js for real-time functions.
+
+PostgreSQL: Database for storing player data, transactions, and marketplace listings.
+
+WebSockets: For real-time interactions in quests, battles, or trades.
+
+IPFS / Decentralized Storage: Storing in-game assets securely.
+
+Docker: For containerized deployment.
+
+Next Steps
+Backend API Design:
+
+User authentication (Pi Network login).
+
+Quest system (fetching and storing quest progress).
+
+Marketplace API (buy/sell listings, escrow system).
+
+Economy tracking (player balances, transactions).
+
+Frontend Components:
+
+Landing page & player dashboard.
+
+Quest UI (active quests, progress, rewards).
+
+Marketplace interface (listings, auctions, transactions).
+
 ## 🚀 Features
 
 - **Metaverse Gameplay**: Engage in a dynamic world with levels ranging from 1 to 250.
