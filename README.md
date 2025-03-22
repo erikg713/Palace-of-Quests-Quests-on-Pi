@@ -141,6 +141,7 @@ backend/
 
    flask db migrate -m "Add role to User model"
 flask db upgrade
+pip install flask-limiter
 
 
 ## 📅 Roadmap
