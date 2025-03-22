@@ -1,6 +1,20 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import uuid
+from datetime import datetime
+import uuid
+
+# ... existing models ...
+
+# UserQuest Model: Tracks a user's progress on a quest
+class UserQuest(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(36), db.ForeignKey('user.id'), nullable=False)
+    quest_id = db.Column(db.Integer, db.ForeignKey('quest.id'), nullable=False)
+    progress = db.Column(db.Float, default=0.0)  # Percentage progress
+    status = db.Column(db.String(20), default='in_progress')  # in_progress, completed
+    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    completed_at = db.Column(db.DateTime, nullable=True)
 
 db = SQLAlchemy()
 
