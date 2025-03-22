@@ -34,6 +34,11 @@ from routes.quests import quests_bp
 from routes.marketplace import marketplace_bp
 from routes.economy import economy_bp
 from routes.users import users_bp
+# Import transactions blueprint
+from routes.transactions import transactions_bp
+
+# Register the blueprint with a URL prefix, for example, /transactions
+app.register_blueprint(transactions_bp, url_prefix='/transactions')
 
 app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(quests_bp, url_prefix='/quests')
