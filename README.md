@@ -85,7 +85,28 @@ Marketplace interface (listings, auctions, transactions).
 
 ## 📂 Project Structure
 
-Palace-of-Quests/ ├── backend/ │   ├── app/ │   │   ├── config.py │   │   ├── models/ │   │   ├── routes/ │   │   └── services/ │   ├── requirements.txt │   └── wsgi.py ├── frontend/ │   ├── src/ │   │   ├── components/ │   │   ├── pages/ │   │   └── utils/ │   ├── public/ │   └── package.json └── README.md
+backend/
+│── flask_app/             # Flask backend for structured logic
+│   ├── routes/            # API endpoints
+│   │   ├── auth.py        # Pi Network authentication
+│   │   ├── quests.py      # Quest system API
+│   │   ├── marketplace.py # Marketplace API (buy/sell/trade)
+│   │   ├── economy.py     # Pi transactions and balance tracking
+│   │   ├── users.py       # Player profiles & inventory
+│   ├── services/          # Core game logic & processing
+│   ├── models.py          # Database models (PostgreSQL)
+│   ├── config.py          # App settings & security configs
+│   ├── __init__.py        # Flask app initialization
+│── node_server/           # Node.js for real-time interactions
+│   ├── index.js           # WebSockets for real-time trading and updates
+│── database/              # PostgreSQL database setup
+│   ├── migrations/        # DB migrations
+│   ├── schema.sql         # Database schema
+│── .env                   # Environment variables (secure keys, API URLs)
+│── Dockerfile             # Containerized deployment
+│── requirements.txt       # Flask dependencies
+│── package.json           # Node.js dependencies
+
 
 ## 📦 Installation
 
