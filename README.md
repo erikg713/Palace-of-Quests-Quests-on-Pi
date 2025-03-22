@@ -139,6 +139,10 @@ backend/
    docker-compose up
    ```
 
+   flask db migrate -m "Add role to User model"
+flask db upgrade
+
+
 ## 📅 Roadmap
 
 - [ ] Launch MVP with Pi Network payment integration.
