@@ -300,3 +300,60 @@ Expected Response:
       "started_at": "2025-03-21T12:34:56.789123",
       "completed_at": "2025-03-21T12:45:00.123456"
     },
+
+#### Create a new Quest ####
+curl -X POST http://localhost:5000/admin/quest/create \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Defeat the Goblin King",
+    "description": "Venture into the dark forest and defeat the Goblin King.",
+    "reward": 75,
+    "level_required": 3
+  }'
+Expected Response:
+
+json
+Copy
+Edit
+{
+  "message": "Quest created successfully",
+  "quest_id": <newly_generated_quest_id>
+}
+Update an Existing Quest
+
+bash
+Copy
+Edit
+curl -X PUT http://localhost:5000/admin/quest/update \
+  -H "Content-Type: application/json" \
+  -d '{
+    "quest_id": 1,
+    "title": "Defeat the Mighty Goblin King",
+    "reward": 80
+  }'
+Expected Response:
+
+json
+Copy
+Edit
+{
+  "message": "Quest updated successfully",
+  "quest_id": 1
+}
+Delete a Quest
+
+bash
+Copy
+Edit
+curl -X DELETE http://localhost:5000/admin/quest/delete \
+  -H "Content-Type: application/json" \
+  -d '{"quest_id": 1}'
+Expected Response:
+
+json
+Copy
+Edit
+{
+  "message": "Quest deleted successfully",
+  "quest_id": 1
+}
