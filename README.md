@@ -231,6 +231,100 @@ curl -X POST http://localhost:5000/auth/login \
 ```json
 {"error": "User not found"}
 ```
+#### Start a User Quest
+curl -X POST http://localhost:5000/user_quests/start \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "some-user-id", "quest_id": 1}'
+
+**Expected Response**
+{"message": "User quest started", "user_quest_id": <generated_id>}
+```
+#### Update Quest Progress ####
+curl -X POST http://localhost:5000/user_quests/update \
+  -H "Content-Type: application/json" \
+  -d '{"user_quest_id": 1, "progress": 50}'
+
+**Expected Response**
+{"message": "User quest progress updated", "user_quest_id": 1}
+Mark Quest as Completed
+
+bash
+Copy
+Edit
+curl -X POST http://localhost:5000/user_quests/update \
+  -H "Content-Type: application/json" \
+  -d '{"user_quest_id": 1, "progress": 100}'
+Expected Response:
+
+json
+Copy
+Edit
+{"message": "User quest progress updated", "user_quest_id": 1}
+Retrieve All User Quests
+
+bash
+Copy
+Edit
+curl -X GET "http://localhost:5000/user_quests/?user_id=some-user-id"
+Expected Response:
+
+json
+Copy
+Edit
+{
+  "user_id": "some-user-id",
+  "quests": [
+    {
+      "user_quest_id": 1,
+      "quest_id": 1,
+      "progress": 100,
+      "status": "completed",
+      "started_at": "2025-03-21T12:34:56.789123",
+      "completed_at": "2025-03-21T12:45:00.123456"
+    },
+    ...
+  ]
+}
+Mark Quest as Completed
+
+bash
+Copy
+Edit
+curl -X POST http://localhost:5000/user_quests/update \
+  -H "Content-Type: application/json" \
+  -d '{"user_quest_id": 1, "progress": 100}'
+Expected Response:
+
+json
+Copy
+Edit
+{"message": "User quest progress updated", "user_quest_id": 1}
+Retrieve All User Quests
+
+bash
+Copy
+Edit
+curl -X GET "http://localhost:5000/user_quests/?user_id=some-user-id"
+Expected Response:
+
+json
+Copy
+Edit
+{
+  "user_id": "some-user-id",
+  "quests": [
+    {
+      "user_quest_id": 1,
+      "quest_id": 1,
+      "progress": 100,
+      "status": "completed",
+      "started_at": "2025-03-21T12:34:56.789123",
+      "completed_at": "2025-03-21T12:45:00.123456"
+    },
+    ...
+  ]
+}
+
 
 ### Customize
 - Replace placeholders like `your-username` and `your-email@example.com` with your details.
