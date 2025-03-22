@@ -4,6 +4,11 @@ from flask_cors import CORS
 from flask_migrate import Migrate
 from dotenv import load_dotenv
 import os
+# Import user quests blueprint
+from routes.user_quests import user_quests_bp
+
+# Register the blueprint with a URL prefix, e.g., /user_quests
+app.register_blueprint(user_quests_bp, url_prefix='/user_quests')
 
 # Load environment variables
 load_dotenv()
