@@ -1,54 +1,14 @@
 from flask import Flask
-from app.models import db
-
-def create_app(config_name="development"):
-    app = Flask(__name__)
-    
-    # Load configuration
-    if config_name == "production":
-        app.config.from_object("app.config.ProductionConfig")
-    elif config_name == "testing":
-        app.config.from_object("app.config.TestingConfig")
-    else:
-        app.config.from_object("app.config.DevelopmentConfig")
-    
-    # Initialize extensions
-    db.init_app(app)
-
-    # Register blueprints
-    from app.routes import main as main_blueprint
-    app.register_blueprint(main_blueprint)
-
-    return app
-from flask_migrate import Migrate
-
-migrate = Migrate()
-
-def create_app(config_name="development"):
-    app = Flask(__name__)
-    
-    # Load configuration
-    app.config.from_object("app.config.DevelopmentConfig")
-    
-    # Initialize extensions
-    db.init_app(app)
-    migrate.init_app(app, db)
-
-    return app
-from app.routes import auth as auth_blueprint
-app.register_blueprint(auth_blueprint, url_prefix='/auth')
-from app.routes import quest as quest_blueprint
-app.register_blueprint(quest_blueprint, url_prefix='/api')
-# app/__init__.py
-from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
+from flask_migrate import Migrate
 from dotenv import load_dotenv
 import os
 
 db = SQLAlchemy()
+migrate = Migrate()
 
-def create_app(config_filename=None):
+def create_app(config_name="development"):
     # Load environment variables
     load_dotenv()
 
@@ -57,14 +17,16 @@ def create_app(config_filename=None):
     CORS(app)
 
     # Load configuration
-    if config_filename:
-        app.config.from_pyfile(config_filename)
+    if config_name == "production":
+        app.config.from_object("app.config.ProductionConfig")
+    elif config_name == "testing":
+        app.config.from_object("app.config.TestingConfig")
     else:
-        app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://user:password@localhost/palace_of_quests')
-        app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+        app.config.from_object("app.config.DevelopmentConfig")
 
     # Initialize extensions
     db.init_app(app)
+    migrate.init_app(app, db)
 
     # Register blueprints
     from app.blueprints.auth import auth_bp
