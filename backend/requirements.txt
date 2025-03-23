@@ -23,3 +23,7 @@ pytest-flask==1.2.0              # Pytest plugin for testing Flask apps
 
 # Miscellaneous
 Werkzeug==3.0.6                  # WSGI utility library
+Flask==2.0.1
+Flask_SQLAlchemy==2.5.1
+Flask_Cors==3.0.10
+python-dotenv==0.17.1
