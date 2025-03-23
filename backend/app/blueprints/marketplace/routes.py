@@ -1,6 +1,5 @@
-# app/blueprints/marketplace/routes.py
 from flask import render_template, redirect, url_for, flash, request
-from flask_login import login_required
+from flask_login import login_required, current_user
 from app import db
 from app.models.item import Item
 from app.blueprints.marketplace import marketplace_bp
@@ -17,7 +16,12 @@ def index():
 def sell():
     form = ItemForm()
     if form.validate_on_submit():
-        item = Item(name=form.name.data, description=form.description.data, price=form.price.data, seller_id=current_user.id)
+        item = Item(
+            name=form.name.data, 
+            description=form.description.data, 
+            price=form.price.data, 
+            seller_id=current_user.id
+        )
         db.session.add(item)
         db.session.commit()
         flash('Item listed for sale.', 'success')
@@ -31,4 +35,3 @@ def buy(item_id):
     # Implement purchase logic here
     flash(f'You have purchased {item.name}.', 'success')
     return redirect(url_for('marketplace.index'))
-
