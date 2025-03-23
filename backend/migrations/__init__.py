@@ -1,1 +1,2 @@
+flask db init
 
