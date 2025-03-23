@@ -1,10 +1,3 @@
-from flask import render_template
-from . import auth_bp
-
-@auth_bp.route('/login')
-def login():
-    return render_template('auth/login.html')
-# app/blueprints/auth/routes.py
 from flask import render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required
 from app.models.user import User
@@ -43,4 +36,3 @@ def register():
         flash('Registration successful. You can now log in.', 'success')
         return redirect(url_for('auth.login'))
     return render_template('auth/register.html', form=form)
-
