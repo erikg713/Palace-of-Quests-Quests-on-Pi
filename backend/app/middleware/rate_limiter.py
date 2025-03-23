@@ -1,26 +1,42 @@
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from time import time
+from flask import request, jsonify, Flask
 
-def init_rate_limiter(app):
-    # Initialize the limiter using the request's remote address as key.
+def init_rate_limiter(app: Flask) -> Limiter:
+    """
+    Initialize the rate limiter using the request's remote address as key.
+    
+    Args:
+        app (Flask): The Flask application instance.
+        
+    Returns:
+        Limiter: The initialized Limiter instance.
+    """
     limiter = Limiter(
-        app,
         key_func=get_remote_address,
         default_limits=["200 per day", "50 per hour"]
     )
+    limiter.init_app(app)
     return limiter
-# app/middleware/rate_limiter.py
-from time import time
-from flask import request, jsonify
 
 class RateLimiterMiddleware:
-    def __init__(self, app, limit=100, period=60):
+    """
+    Middleware for rate limiting based on client IP address.
+    
+    Args:
+        app (Flask): The Flask application instance.
+        limit (int): The number of requests allowed per period.
+        period (int): The time period in seconds for rate limiting.
+    """
+    
+    def __init__(self, app: Flask, limit: int = 100, period: int = 60):
         self.app = app
         self.limit = limit
         self.period = period
         self.clients = {}
 
-    def __call__(self, environ, start_response):
+    def __call__(self, environ: dict, start_response):
         client_ip = environ.get('REMOTE_ADDR')
         current_time = time()
 
