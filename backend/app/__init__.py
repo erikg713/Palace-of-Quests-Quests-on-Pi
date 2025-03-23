@@ -4,6 +4,15 @@ from flask_cors import CORS
 from flask_migrate import Migrate
 from dotenv import load_dotenv
 import os
+# app/__init__.py
+from flask import Flask
+from app.middleware.error_handler import register_error_handlers
+
+def create_app():
+    app = Flask(__name__)
+    register_error_handlers(app)
+    # Initialize other components
+    return app
 
 db = SQLAlchemy()
 migrate = Migrate()
