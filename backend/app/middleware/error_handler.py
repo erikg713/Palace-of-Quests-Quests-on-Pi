@@ -2,25 +2,18 @@ import logging
 from flask import jsonify
 
 def register_error_handlers(app):
-    @app.errorhandler(Exception)
-    def handle_exception(e):
-        # Log the exception details for debugging purposes
-        app.logger.error("Unhandled Exception", exc_info=e)
-        
-        # Customize your error response here
-        response = {
-            "error": "Internal server error",
-            "message": str(e)
-        }
-        return jsonify(response), 500
-# app/middleware/error_handler.py
-from flask import jsonify
-
-def register_error_handlers(app):
     def error_response(error, message, status_code):
         response = jsonify({'error': error, 'message': message})
         response.status_code = status_code
         return response
+
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        # Log the exception details for debugging purposes
+        app.logger.error("Unhandled Exception", exc_info=e)
+
+        # Customize your error response here
+        return error_response("Internal server error", str(e), 500)
 
     @app.errorhandler(400)
     def bad_request(error):
