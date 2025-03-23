@@ -1,12 +1,10 @@
 # app/extensions.py
+
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 
+# Initialize the SQLAlchemy object
 db = SQLAlchemy()
+
+# Initialize the CORS object
 cors = CORS()
-
-
-from flask_sqlalchemy import SQLAlchemy
-::contentReference[oaicite:37]{index=37}
- 
-
