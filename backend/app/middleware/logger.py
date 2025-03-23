@@ -1,9 +1,6 @@
 import logging
 from flask import request, g
 import time
-# app/middleware/logger.py
-import time
-from flask import request
 
 class LoggerMiddleware:
     def __init__(self, app):
@@ -22,7 +19,7 @@ class LoggerMiddleware:
                 'status': status.split(' ')[0],
                 'response_time': f'{response_time:.4f}s'
             }
-            print(log_details)
+            logging.info(log_details)  # Use logging instead of print
             return start_response(status, headers, exc_info)
 
         return self.app(environ, custom_start_response)
