@@ -1,7 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash
 from flask_login import login_required, current_user
 from app import db
-from app.models.user import User
 from app.blueprints.users.forms import UpdateProfileForm
 
 users_bp = Blueprint('users', __name__)
@@ -17,4 +16,3 @@ def profile():
         flash('Your profile has been updated.', 'success')
         return redirect(url_for('users.profile'))
     return render_template('users/profile.html', form=form)
-
