@@ -1,13 +1,6 @@
 import logging
 from flask import request, g
 import time
-# app/middleware/logger.py
-from flask import request
-
-def log_request():
-    def middleware():
-        app.logger.info(f'{request.method} {request.path}')
-    return middleware
 
 def setup_logging(app):
     # Set up logging handler if not already present
