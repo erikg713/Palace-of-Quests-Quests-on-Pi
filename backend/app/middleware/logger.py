@@ -1,6 +1,31 @@
 import logging
 from flask import request, g
 import time
+# app/middleware/logger.py
+import time
+from flask import request
+
+class LoggerMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    def __call__(self, environ, start_response):
+        start_time = time.time()
+        request_method = environ.get('REQUEST_METHOD')
+        path_info = environ.get('PATH_INFO')
+
+        def custom_start_response(status, headers, exc_info=None):
+            response_time = time.time() - start_time
+            log_details = {
+                'method': request_method,
+                'path': path_info,
+                'status': status.split(' ')[0],
+                'response_time': f'{response_time:.4f}s'
+            }
+            print(log_details)
+            return start_response(status, headers, exc_info)
+
+        return self.app(environ, custom_start_response)
 
 def setup_logging(app):
     # Set up logging handler if not already present
