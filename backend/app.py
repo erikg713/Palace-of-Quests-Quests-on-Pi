@@ -51,6 +51,7 @@ def create_app(config_name=None):
     from routes.analytics import analytics_bp
     from routes.health import health_bp  # Health check endpoint
 
+    # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(quests_bp, url_prefix='/quests')
     app.register_blueprint(marketplace_bp, url_prefix='/marketplace')
