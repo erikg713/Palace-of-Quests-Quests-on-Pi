@@ -1,3 +1,125 @@
+"""
+Configuration management for Palace of Quests application.
+
+Provides environment-specific configuration classes with validation
+and type safety.
+"""
+
+import os
+from typing import Dict, Any, Optional
+from dataclasses import dataclass, field
+
+
+@dataclass
+class DatabaseConfig:
+    """Database configuration with connection pooling options."""
+    uri: str
+    track_modifications: bool = False
+    engine_options: Dict[str, Any] = field(default_factory=lambda: {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+        'pool_timeout': 20,
+        'max_overflow': 0,
+        'echo': False
+    })
+
+
+@dataclass 
+class SecurityConfig:
+    """Security-related configuration options."""
+    secret_key: Optional[str] = None
+    session_cookie_secure: bool = True
+    session_cookie_httponly: bool = True
+    session_cookie_samesite: str = 'Lax'
+    csrf_enabled: bool = True
+
+
+class BaseConfig:
+    """Base configuration with common settings."""
+    
+    # Flask settings
+    JSON_SORT_KEYS = False
+    JSONIFY_PRETTYPRINT_REGULAR = False
+    
+    # Database settings
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+        'pool_timeout': 20,
+        'max_overflow': 0
+    }
+    
+    # Security settings
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    
+    @classmethod
+    def get_database_uri(cls) -> str:
+        """Get database URI with proper format handling."""
+        db_url = os.getenv('DATABASE_URL')
+        if not db_url:
+            raise ValueError("DATABASE_URL environment variable not set")
+        
+        # Handle Heroku postgres URL format
+        if db_url.startswith('postgres://'):
+            db_url = db_url.replace('postgres://', 'postgresql://', 1)
+        
+        return db_url
+
+
+class DevelopmentConfig(BaseConfig):
+    """Development environment configuration."""
+    
+    DEBUG = True
+    TESTING = False
+    JSONIFY_PRETTYPRINT_REGULAR = True
+    SESSION_COOKIE_SECURE = False
+    
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        **BaseConfig.SQLALCHEMY_ENGINE_OPTIONS,
+        'echo': True  # Enable SQL query logging in development
+    }
+
+
+class ProductionConfig(BaseConfig):
+    """Production environment configuration."""
+    
+    DEBUG = False
+    TESTING = False
+
+
+class TestingConfig(BaseConfig):
+    """Testing environment configuration."""
+    
+    DEBUG = True
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    SESSION_COOKIE_SECURE = False
+
+
+# Configuration mapping
+config_map = {
+    'development': DevelopmentConfig,
+    'production': ProductionConfig,
+    'testing': TestingConfig,
+    'default': ProductionConfig
+}
+
+
+def get_config(config_name: Optional[str] = None) -> type:
+    """
+    Get configuration class for specified environment.
+    
+    Args:
+        config_name: Configuration environment name
+        
+    Returns:
+        Configuration class for the specified environment
+    """
+    env = config_name or os.getenv('FLASK_ENV', 'production')
+    return config_map.get(env, config_map['default'])
 import os
 from datetime import timedelta
 
