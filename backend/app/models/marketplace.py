@@ -1,0 +1,464 @@
+from datetime import datetime, timedelta
+from enum import Enum
+from decimal import Decimal
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy import event, func
+from app import db
+import json
+import uuid
+
+class ItemType(Enum):
+    WEAPON = "weapon"
+    ARMOR = "armor"
+    ACCESSORY = "accessory"
+    CONSUMABLE = "consumable"
+    QUEST_ITEM = "quest_item"
+    COSMETIC = "cosmetic"
+    BLUEPRINT = "blueprint"
+    RESOURCE = "resource"
+    COLLECTIBLE = "collectible"
+    PREMIUM = "premium"
+
+class ItemRarity(Enum):
+    COMMON = "common"
+    UNCOMMON = "uncommon"
+    RARE = "rare"
+    EPIC = "epic"
+    LEGENDARY = "legendary"
+    MYTHIC = "mythic"
+
+class ListingStatus(Enum):
+    ACTIVE = "active"
+    SOLD = "sold"
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"
+    RESERVED = "reserved"
+    UNDER_REVIEW = "under_review"
+
+class MarketplaceItem(db.Model):
+    """
+    Sophisticated marketplace system for in-game items with dynamic pricing.
+    """
+    __tablename__ = 'marketplace_items'
+    
+    # Core identification
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    item_key = db.Column(db.String(100), nullable=False, index=True)
+    
+    # Item details
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    item_type = db.Column(db.Enum(ItemType), nullable=False, index=True)
+    rarity = db.Column(db.Enum(ItemRarity), default=ItemRarity.COMMON, index=True)
+    
+    # Visual and metadata
+    image_url = db.Column(db.String(500))
+    thumbnail_url = db.Column(db.String(500))
+    attributes = db.Column(db.Text)  # JSON of item attributes/stats
+    
+    # Listing information
+    seller_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False, index=True)
+    buyer_id = db.Column(db.String(36), db.ForeignKey('users.id'), index=True)
+    
+    # Pricing
+    original_price = db.Column(db.Numeric(precision=18, scale=8), nullable=False)
+    current_price = db.Column(db.Numeric(precision=18, scale=8), nullable=False)
+    reserve_price = db.Column(db.Numeric(precision=18, scale=8))  # Minimum acceptable price
+    
+    # Auction features
+    is_auction = db.Column(db.Boolean, default=False)
+    auction_end_time = db.Column(db.DateTime)
+    highest_bid = db.Column(db.Numeric(precision=18, scale=8))
+    highest_bidder_id = db.Column(db.String(36), db.ForeignKey('users.id'))
+    bid_count = db.Column(db.Integer, default=0)
+    
+    # Status and timing
+    status = db.Column(db.Enum(ListingStatus), default=ListingStatus.ACTIVE, index=True)
+    listed_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    expires_at = db.Column(db.DateTime, index=True)
+    sold_at = db.Column(db.DateTime)
+    
+    # Market analytics
+    view_count = db.Column(db.Integer, default=0)
+    favorite_count = db.Column(db.Integer, default=0)
+    inquiry_count = db.Column(db.Integer, default=0)
+    
+    # Quality and authenticity
+    condition_rating = db.Column(db.Float)  # 1-10 scale
+    authenticity_verified = db.Column(db.Boolean, default=False)
+    verification_notes = db.Column(db.Text)
+    
+    # Seller reputation impact
+    seller_rating_at_listing = db.Column(db.Float)
+    
+    # Transaction details
+    sale_price = db.Column(db.Numeric(precision=18, scale=8))
+    transaction_id = db.Column(db.String(36), db.ForeignKey('transactions.id'))
+    platform_fee = db.Column(db.Numeric(precision=18, scale=8))
+    
+    # Search and categorization
+    tags = db.Column(db.Text)  # JSON array of searchable tags
+    category_path = db.Column(db.String(255), index=True)  # hierarchical category
+    
+    # Relationships
+    seller = db.relationship('User', foreign_keys=[seller_id], backref='marketplace_listings')
+    buyer = db.relationship('User', foreign_keys=[buyer_id])
+    highest_bidder = db.relationship('User', foreign_keys=[highest_bidder_id])
+    transaction = db.relationship('Transaction', backref='marketplace_item')
+    bids = db.relationship('MarketplaceBid', backref='item', cascade='all, delete-orphan')
+    
+    def __repr__(self):
+        return f'<MarketplaceItem {self.name} - {self.current_price} Pi>'
+    
+    @classmethod
+    def create_listing(cls, seller_id: str, item_data: dict) -> 'MarketplaceItem':
+        """Create a new marketplace listing with validation."""
+        # Set expiration based on item type and price
+        days_to_expire = cls._calculate_listing_duration(
+            item_data.get('item_type'), 
+            item_data.get('price')
+        )
+        
+        expires_at = datetime.utcnow() + timedelta(days=days_to_expire)
+        
+        listing = cls(
+            seller_id=seller_id,
+            item_key=item_data['item_key'],
+            name=item_data['name'],
+            description=item_data.get('description'),
+            item_type=ItemType(item_data['item_type']),
+            rarity=ItemRarity(item_data.get('rarity', 'common')),
+            original_price=Decimal(str(item_data['price'])),
+            current_price=Decimal(str(item_data['price'])),
+            is_auction=item_data.get('is_auction', False),
+            expires_at=expires_at,
+            attributes=json.dumps(item_data.get('attributes', {})),
+            tags=json.dumps(item_data.get('tags', []))
+        )
+        
+        # Set auction end time if it's an auction
+        if listing.is_auction:
+            auction_duration = item_data.get('auction_duration_hours', 72)
+            listing.auction_end_time = datetime.utcnow() + timedelta(hours=auction_duration)
+            listing.reserve_price = item_data.get('reserve_price')
+        
+        return listing
+    
+    @staticmethod
+    def _calculate_listing_duration(item_type: str, price: Decimal) -> int:
+        """Calculate optimal listing duration based on item characteristics."""
+        base_days = 7
+        
+        # Premium items get longer listings
+        if item_type in ['legendary', 'mythic']:
+            base_days = 14
+        elif price > Decimal('100.0'):
+            base_days = 10
+        
+        return base_days
+    
+    def place_bid(self, bidder_id: str, bid_amount: Decimal) -> tuple[bool, str]:
+        """Place a bid on an auction item."""
+        if not self.is_auction:
+            return False, "Item is not an auction"
+        
+        if self.status != ListingStatus.ACTIVE:
+            return False, "Auction is not active"
+        
+        if datetime.utcnow() > self.auction_end_time:
+            return False, "Auction has ended"
+        
+        if bidder_id == self.seller_id:
+            return False, "Seller cannot bid on their own item"
+        
+        # Check minimum bid requirements
+        min_bid = self._calculate_minimum_bid()
+        if bid_amount < min_bid:
+            return False, f"Bid must be at least {min_bid} Pi"
+        
+        # Create bid record
+        bid = MarketplaceBid(
+            item_id=self.id,
+            bidder_id=bidder_id,
+            bid_amount=bid_amount,
+            placed_at=datetime.utcnow()
+        )
+        
+        # Update highest bid
+        self.highest_bid = bid_amount
+        self.highest_bidder_id = bidder_id
+        self.bid_count += 1
+        
+        # Extend auction if bid placed in last 5 minutes
+        time_remaining = self.auction_end_time - datetime.utcnow()
+        if time_remaining < timedelta(minutes=5):
+            self.auction_end_time += timedelta(minutes=5)
+        
+        db.session.add(bid)
+        return True, "Bid placed successfully"
+    
+    def _calculate_minimum_bid(self) -> Decimal:
+        """Calculate minimum bid amount."""
+        if not self.highest_bid:
+            return self.reserve_price or self.current_price
+        
+        # Minimum increment based on current highest bid
+        if self.highest_bid < Decimal('10.0'):
+            increment = Decimal('0.5')
+        elif self.highest_bid < Decimal('100.0'):
+            increment = Decimal('1.0')
+        else:
+            increment = self.highest_bid * Decimal('0.05')  # 5% increment
+        
+        return self.highest_bid + increment
+    
+    def buy_now(self, buyer_id: str) -> tuple[bool, str]:
+        """Process immediate purchase of an item."""
+        if self.status != ListingStatus.ACTIVE:
+            return False, "Item is not available for purchase"
+        
+        if self.is_auction and datetime.utcnow() < self.auction_end_time:
+            return False, "Item is in auction - place a bid instead"
+        
+        if buyer_id == self.seller_id:
+            return False, "Cannot purchase your own item"
+        
+        # Check buyer funds
+        from app.models.user import User
+        buyer = db.session.get(User, buyer_id)
+        if not buyer or not buyer.can_afford(float(self.current_price)):
+            return False, "Insufficient funds"
+        
+        # Create transaction
+        from app.models.transaction import Transaction, TransactionType
+        
+        # Calculate platform fee (5% of sale price)
+        platform_fee = self.current_price * Decimal('0.05')
+        seller_amount = self.current_price - platform_fee
+        
+        transaction = Transaction(
+            sender_id=buyer_id,
+            recipient_id=self.seller_id,
+            amount=self.current_price,
+            net_amount=seller_amount,
+            fee=platform_fee,
+            transaction_type=TransactionType.MARKETPLACE_PURCHASE,
+            description=f"Purchase of {self.name}",
+            reference_id=self.id,
+            reference_type='marketplace_item'
+        )
+        
+        # Process the transaction
+        success, error = transaction.process_transaction()
+        if not success:
+            return False, f"Transaction failed: {error}"
+        
+        # Update item status
+        self.buyer_id = buyer_id
+        self.status = ListingStatus.SOLD
+        self.sold_at = datetime.utcnow()
+        self.sale_price = self.current_price
+        self.transaction_id = transaction.id
+        self.platform_fee = platform_fee
+        
+        # Transfer item ownership
+        self._transfer_item_ownership(buyer_id)
+        
+        return True, "Purchase completed successfully"
+    
+    def _transfer_item_ownership(self, new_owner_id: str) -> None:
+        """Transfer item ownership in user inventory."""
+        # This would integrate with an inventory system
+        # For now, we'll create a record in user_items table
+        from app.models.user_item import UserItem
+        
+        user_item = UserItem(
+            user_id=new_owner_id,
+            item_key=self.item_key,
+            item_name=self.name,
+            item_type=self.item_type.value,
+            rarity=self.rarity.value,
+            attributes=self.attributes,
+            acquired_at=datetime.utcnow(),
+            acquired_method='marketplace_purchase',
+            source_transaction_id=self.transaction_id
+        )
+        
+        db.session.add(user_item)
+    
+    def end_auction(self) -> tuple[bool, str]:
+        """End an auction and process the sale."""
+        if not self.is_auction:
+            return False, "Item is not an auction"
+        
+        if datetime.utcnow() < self.auction_end_time:
+            return False, "Auction has not ended yet"
+        
+        if not self.highest_bidder_id:
+            self.status = ListingStatus.EXPIRED
+            return False, "No bids received"
+        
+        if self.reserve_price and self.highest_bid < self.reserve_price:
+            self.status = ListingStatus.EXPIRED
+            return False, "Reserve price not met"
+        
+        # Process sale to highest bidder
+        self.current_price = self.highest_bid
+        return self.buy_now(self.highest_bidder_id)
+    
+    def cancel_listing(self, reason: str = None) -> bool:
+        """Cancel an active listing."""
+        if self.status != ListingStatus.ACTIVE:
+            return False
+        
+        # Can't cancel auction with bids
+        if self.is_auction and self.bid_count > 0:
+            return False
+        
+        self.status = ListingStatus.CANCELLED
+        if reason:
+            self.verification_notes = f"Cancelled: {reason}"
+        
+        return True
+    
+    def update_price(self, new_price: Decimal) -> bool:
+        """Update item price (only for non-auction items)."""
+        if self.is_auction:
+            return False
+        
+        if self.status != ListingStatus.ACTIVE:
+            return False
+        
+        # Add price history tracking
+        self._add_price_history(self.current_price, new_price)
+        self.current_price = new_price
+        
+        return True
+    
+    def _add_price_history(self, old_price: Decimal, new_price: Decimal) -> None:
+        """Track price changes for market analysis."""
+        price_change = {
+            'timestamp': datetime.utcnow().isoformat(),
+            'old_price': str(old_price),
+            'new_price': str(new_price),
+            'change_percentage': float((new_price - old_price) / old_price * 100)
+        }
+        
+        # This would be stored in a separate price_history table in production
+        pass
+    
+    def get_attributes(self) -> dict:
+        """Get parsed item attributes."""
+        if not self.attributes:
+            return {}
+        try:
+            return json.loads(self.attributes)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    
+    def get_tags(self) -> list:
+        """Get list of item tags."""
+        if not self.tags:
+            return []
+        try:
+            return json.loads(self.tags)
+        except (json.JSONDecodeError, TypeError):
+            return []
+    
+    @hybrid_property
+    def time_remaining(self) -> timedelta:
+        """Calculate time remaining for listing."""
+        if self.is_auction and self.auction_end_time:
+            return max(timedelta(0), self.auction_end_time - datetime.utcnow())
+        elif self.expires_at:
+            return max(timedelta(0), self.expires_at - datetime.utcnow())
+        return timedelta(0)
+    
+    @hybrid_property
+    def is_expired(self) -> bool:
+        """Check if listing has expired."""
+        now = datetime.utcnow()
+        if self.is_auction:
+            return now > self.auction_end_time if self.auction_end_time else False
+        return now > self.expires_at if self.expires_at else False
+    
+    def calculate_market_value(self) -> Decimal:
+        """Calculate estimated market value based on similar items."""
+        # This would use ML algorithms in production
+        # For now, simple calculation based on rarity and attributes
+        base_value = self.current_price
+        
+        # Rarity multiplier
+        rarity_multipliers = {
+            ItemRarity.COMMON: 1.0,
+            ItemRarity.UNCOMMON: 1.5,
+            ItemRarity.RARE: 2.5,
+            ItemRarity.EPIC: 4.0,
+            ItemRarity.LEGENDARY: 7.0,
+            ItemRarity.MYTHIC: 12.0
+        }
+        
+        return base_value * Decimal(str(rarity_multipliers.get(self.rarity, 1.0)))
+    
+    def to_dict(self, include_seller_info: bool = False) -> dict:
+        """Convert item to dictionary for API responses."""
+        item_data = {
+            'id': self.id,
+            'item_key': self.item_key,
+            'name': self.name,
+            'description': self.description,
+            'item_type': self.item_type.value,
+            'rarity': self.rarity.value,
+            'current_price': str(self.current_price),
+            'original_price': str(self.original_price),
+            'is_auction': self.is_auction,
+            'status': self.status.value,
+            'listed_at': self.listed_at.isoformat(),
+            'view_count': self.view_count,
+            'favorite_count': self.favorite_count,
+            'attributes': self.get_attributes(),
+            'tags': self.get_tags(),
+            'image_url': self.image_url,
+            'thumbnail_url': self.thumbnail_url
+        }
+        
+        if self.is_auction:
+            item_data.update({
+                'auction_end_time': self.auction_end_time.isoformat() if self.auction_end_time else None,
+                'highest_bid': str(self.highest_bid) if self.highest_bid else None,
+                'bid_count': self.bid_count,
+                'reserve_price': str(self.reserve_price) if self.reserve_price else None,
+                'time_remaining_seconds': int(self.time_remaining.total_seconds())
+            })
+        
+        if include_seller_info and self.seller:
+            item_data['seller'] = {
+                'id': self.seller.id,
+                'username': self.seller.username,
+                'rating': self.seller_rating_at_listing or 0.0
+            }
+        
+        return item_data
+
+class MarketplaceBid(db.Model):
+    """Auction bid tracking."""
+    __tablename__ = 'marketplace_bids'
+    
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    item_id = db.Column(db.String(36), db.ForeignKey('marketplace_items.id'), nullable=False)
+    bidder_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    bid_amount = db.Column(db.Numeric(precision=18, scale=8), nullable=False)
+    placed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
+    
+    bidder = db.relationship('User', backref='marketplace_bids')
+
+# Event listeners for automatic expiration handling
+@event.listens_for(MarketplaceItem, 'after_update')
+def check_item_expiration(mapper, connection, target):
+    """Automatically expire listings that have passed their expiration date."""
+    if target.is_expired and target.status == ListingStatus.ACTIVE:
+        if target.is_auction:
+            target.end_auction()
+        else:
+            target.status = ListingStatus.EXPIRED
