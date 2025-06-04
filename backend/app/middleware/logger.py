@@ -1,51 +1,94 @@
+"""
+Enhanced logging middleware for Palace of Quests application.
+
+Provides structured logging with request tracking, performance monitoring,
+and configurable log levels.
+"""
+
 import logging
-from flask import request, g
 import time
+import uuid
+from typing import Optional, Dict, Any
+from flask import Flask, request, g, jsonify
+from flask.wrappers import Response
+from werkzeug.exceptions import HTTPException
 
-class LoggerMiddleware:
-    def __init__(self, app):
-        self.app = app
 
-    def __call__(self, environ, start_response):
-        start_time = time.time()
-        request_method = environ.get('REQUEST_METHOD')
-        path_info = environ.get('PATH_INFO')
-
-        def custom_start_response(status, headers, exc_info=None):
-            response_time = time.time() - start_time
-            log_details = {
-                'method': request_method,
-                'path': path_info,
-                'status': status.split(' ')[0],
-                'response_time': f'{response_time:.4f}s'
-            }
-            logging.info(log_details)  # Use logging instead of print
-            return start_response(status, headers, exc_info)
-
-        return self.app(environ, custom_start_response)
-
-def setup_logging(app):
-    # Set up logging handler if not already present
-    if not app.logger.handlers:
-        handler = logging.StreamHandler()
-        handler.setLevel(logging.INFO)
-        formatter = logging.Formatter(
-            '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
-        )
-        handler.setFormatter(formatter)
-        app.logger.addHandler(handler)
+class RequestFormatter(logging.Formatter):
+    """Custom formatter that includes request context in log messages."""
     
-    @app.before_request
-    def start_timer():
-        g.start = time.time()
+    def format(self, record: logging.LogRecord) -> str:
+        """Format log record with request context."""
+        if hasattr(g, 'request_id'):
+            record.request_id = g.request_id
+        else:
+            record.request_id = 'N/A'
+        
+        if hasattr(g, 'user_id'):
+            record.user_id = g.user_id
+        else:
+            record.user_id = 'anonymous'
+        
+        return super().format(record)
 
+
+def setup_logging(app: Flask) -> None:
+    """
+    Configure application logging with request tracking and performance monitoring.
+    
+    Args:
+        app: Flask application instance
+    """
+    # Configure log level based on environment
+    log_level = logging.DEBUG if app.debug else logging.INFO
+    
+    # Create formatter
+    formatter = RequestFormatter(
+        '[%(asctime)s] %(levelname)s [%(request_id)s] [%(user_id)s] '
+        '%(name)s: %(message)s'
+    )
+    
+    # Configure file handler for production
+    if not app.debug:
+        file_handler = logging.FileHandler('palace_quests.log')
+        file_handler.setLevel(log_level)
+        file_handler.setFormatter(formatter)
+        app.logger.addHandler(file_handler)
+    
+    # Configure console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(formatter)
+    app.logger.addHandler(console_handler)
+    
+    app.logger.setLevel(log_level)
+    
+    # Request tracking middleware
+    @app.before_request
+    def before_request():
+        """Initialize request tracking."""
+        g.request_id = str(uuid.uuid4())[:8]
+        g.start_time = time.time()
+        
+        # Log request details
+        app.logger.info(
+            f"Request started: {request.method} {request.path} "
+            f"from {request.remote_addr}"
+        )
+    
     @app.after_request
-    def log_request(response):
-        if not hasattr(g, 'start'):
-            g.start = time.time()
-        duration = time.time() - g.start
-        method = request.method
-        path = request.path
-        status = response.status_code
-        app.logger.info(f'{method} {path} {status} {duration:.3f}s')
+    def after_request(response: Response) -> Response:
+        """Log request completion and performance metrics."""
+        duration = time.time() - g.start_time
+        
+        app.logger.info(
+            f"Request completed: {response.status_code} "
+            f"in {duration:.3f}s"
+        )
+        
+        # Add request ID to response headers for debugging
+        response.headers['X-Request-ID'] = g.request_id
+        
         return response
+    
+    app.logger.info("Logging middleware initialized successfully")
