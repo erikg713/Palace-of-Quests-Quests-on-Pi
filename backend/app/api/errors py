@@ -1,0 +1,14 @@
+"""Global API Error Handlers"""
+
+from flask import Blueprint
+from .utils import api_error
+
+api_errors = Blueprint('api_errors', __name__)
+
+@api_errors.app_errorhandler(404)
+def not_found(e):
+    return api_error("Resource not found", 404)
+
+@api_errors.app_errorhandler(500)
+def internal_error(e):
+    return api_error("Internal server error", 500)
