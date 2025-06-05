@@ -1,3 +1,31 @@
+def register_blueprints(app):
+    """Register all application blueprints with optimal structure."""
+    from app.blueprints.auth import auth_bp
+    from app.blueprints.quests import quests_bp
+    from app.blueprints.marketplace import marketplace_bp
+    from app.blueprints.economy import economy_bp
+    from app.blueprints.users import users_bp
+    from app.blueprints.transactions import transactions_bp
+    from app.blueprints.user_quests import user_quests_bp
+    from app.blueprints.admin import admin_bp
+    from app.blueprints.analytics import analytics_bp
+    from app.blueprints.health import health_bp
+
+    blueprints = [
+        (auth_bp, '/api/auth'),
+        (quests_bp, '/api/quests'),
+        (marketplace_bp, '/api/marketplace'),
+        (economy_bp, '/api/economy'),
+        (users_bp, '/api/users'),
+        (transactions_bp, '/api/transactions'),
+        (user_quests_bp, '/api/user-quests'),
+        (admin_bp, '/api/admin'),
+        (analytics_bp, '/api/analytics'),
+        (health_bp, '/api/health'),
+    ]
+
+    for blueprint, url_prefix in blueprints:
+        app.register_blueprint(blueprint, url_prefix=url_prefix)
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
