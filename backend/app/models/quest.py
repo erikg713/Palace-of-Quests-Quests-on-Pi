@@ -1,3 +1,5 @@
+"""Quest model for Palace of Quests."""
+
 from datetime import datetime, timedelta
 from enum import Enum
 from sqlalchemy.ext.hybrid import hybrid_property
