@@ -143,7 +143,6 @@ backend/
 flask db upgrade
 pip install flask-limiter
 
-
 ## 📅 Roadmap
 
 - [ ] Launch MVP with Pi Network payment integration.
@@ -236,33 +235,46 @@ curl -X POST http://localhost:5000/auth/login \
 ```json
 {"error": "User not found"}
 ```
+
 #### Start a User Quest
+```bash
 curl -X POST http://localhost:5000/user_quests/start \
   -H "Content-Type: application/json" \
   -d '{"user_id": "some-user-id", "quest_id": 1}'
-
+```
 **Expected Response**
+```json
 {"message": "User quest started", "user_quest_id": <generated_id>}
 ```
-#### Update Quest Progress ####
+
+#### Update Quest Progress
+```bash
 curl -X POST http://localhost:5000/user_quests/update \
   -H "Content-Type: application/json" \
   -d '{"user_quest_id": 1, "progress": 50}'
-
+```
 **Expected Response**
+```json
 {"message": "User quest progress updated", "user_quest_id": 1}
+```
 
-#### Mark Quest as Completed ####
-
+#### Mark Quest as Completed
+```bash
 curl -X POST http://localhost:5000/user_quests/update \
   -H "Content-Type: application/json" \
   -d '{"user_quest_id": 1, "progress": 100}'
-Expected Response:
+```
+**Expected Response:**
+```json
 {"message": "User quest progress updated", "user_quest_id": 1}
-Retrieve All User Quests
+```
 
+Retrieve All User Quests
+```bash
 curl -X GET "http://localhost:5000/user_quests/?user_id=some-user-id"
-Expected Response:
+```
+**Expected Response:**
+```json
 {
   "user_id": "some-user-id",
   "quests": [
@@ -277,36 +289,10 @@ Expected Response:
     ...
   ]
 }
+```
 
-#### Mark Quest as Completed ####
-
-curl -X POST http://localhost:5000/user_quests/update \
-  -H "Content-Type: application/json" \
-  -d '{"user_quest_id": 1, "progress": 100}'
-Expected Response:
-
-json
-Copy
-Edit
-{"message": "User quest progress updated", "user_quest_id": 1}
-
-#### Retrieve All User Quests ####
-
-curl -X GET "http://localhost:5000/user_quests/?user_id=some-user-id"
-Expected Response:
-{
-  "user_id": "some-user-id",
-  "quests": [
-    {
-      "user_quest_id": 1,
-      "quest_id": 1,
-      "progress": 100,
-      "status": "completed",
-      "started_at": "2025-03-21T12:34:56.789123",
-      "completed_at": "2025-03-21T12:45:00.123456"
-    },
-
-#### Create a new Quest ####
+#### Create a new Quest
+```bash
 curl -X POST http://localhost:5000/admin/quest/create \
   -H "Content-Type: application/json" \
   -d '{
@@ -315,20 +301,17 @@ curl -X POST http://localhost:5000/admin/quest/create \
     "reward": 75,
     "level_required": 3
   }'
-Expected Response:
-
-json
-Copy
-Edit
+```
+**Expected Response:**
+```json
 {
   "message": "Quest created successfully",
   "quest_id": <newly_generated_quest_id>
 }
-Update an Existing Quest
+```
 
-bash
-Copy
-Edit
+Update an Existing Quest
+```bash
 curl -X PUT http://localhost:5000/admin/quest/update \
   -H "Content-Type: application/json" \
   -d '{
@@ -336,29 +319,25 @@ curl -X PUT http://localhost:5000/admin/quest/update \
     "title": "Defeat the Mighty Goblin King",
     "reward": 80
   }'
-Expected Response:
-
-json
-Copy
-Edit
+```
+**Expected Response:**
+```json
 {
   "message": "Quest updated successfully",
   "quest_id": 1
 }
-Delete a Quest
+```
 
-bash
-Copy
-Edit
+Delete a Quest
+```bash
 curl -X DELETE http://localhost:5000/admin/quest/delete \
   -H "Content-Type: application/json" \
   -d '{"quest_id": 1}'
-Expected Response:
-
-json
-Copy
-Edit
+```
+**Expected Response:**
+```json
 {
   "message": "Quest deleted successfully",
   "quest_id": 1
 }
+```
