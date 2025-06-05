@@ -171,11 +171,11 @@ Contributions are welcome! Please follow these steps:
 
 ## 🛡️ License
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+This project is licensed under the Pi Network License. See the LICENSE file for details.
 
 ## 📧 Contact
 
-For questions or support, please email: your-email@example.com
+For questions or support, please email: dev713@protonmail.com
 
 ## 🧪 Tests
 
