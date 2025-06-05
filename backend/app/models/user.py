@@ -1,3 +1,61 @@
+"""User model for Palace of Quests."""
+
+from app import db
+from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
+import uuid
+
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    username = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(200), nullable=False)
+    pi_wallet = db.Column(db.String(128), unique=True, nullable=True)
+    level = db.Column(db.Integer, default=1)
+    xp = db.Column(db.Float, default=0.0)
+    rewards = db.Column(db.Float, default=0.0)
+    is_active = db.Column(db.Boolean, default=True)
+    is_admin = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime)
+    login_count = db.Column(db.Integer, default=0)
+
+    # Relationships
+    quests_created = db.relationship('Quest', backref='creator', lazy='dynamic')
+    user_quests = db.relationship('UserQuest', backref='user', lazy='dynamic')
+    transactions = db.relationship('Transaction', backref='user', lazy='dynamic')
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def add_xp(self, amount):
+        self.xp += amount
+        while self.xp >= 100:
+            self.level += 1
+            self.xp -= 100
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "username": self.username,
+            "email": self.email,
+            "pi_wallet": self.pi_wallet,
+            "level": self.level,
+            "xp": self.xp,
+            "rewards": self.rewards,
+            "is_active": self.is_active,
+            "is_admin": self.is_admin,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "last_login": self.last_login.isoformat() if self.last_login else None,
+            "login_count": self.login_count,
+        }
+
+    def __repr__(self):
+        return f"<User {self.username}>"
 import secrets
 from datetime import datetime, timedelta
 from flask import current_app
