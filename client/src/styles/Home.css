@@ -1,5 +1,47 @@
-/* Home.css */
 .home {
-    text-align: center;
-    margin-top: 50px;
+  display: flex;
+  min-height: 60vh;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #f8fafc, #dbeafe 80%);
+  padding: 2rem;
+  animation: fadeIn 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.home__title {
+  font-size: 2.8rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 1.2rem;
+  letter-spacing: -1px;
+  text-shadow: 0 1px 8px #c7d2fe44;
+}
+
+.home__subtitle {
+  font-size: 1.35rem;
+  color: #334155;
+  margin: 0;
+  font-weight: 400;
+  line-height: 1.7;
+}
+
+@media (max-width: 600px) {
+  .home__title {
+    font-size: 2rem;
+  }
+  .home__subtitle {
+    font-size: 1rem;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
