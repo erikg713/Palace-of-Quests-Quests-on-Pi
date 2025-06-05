@@ -1,3 +1,34 @@
+"""Transaction model for Pi payments and rewards."""
+
+from app import db
+from datetime import datetime
+
+class Transaction(db.Model):
+    __tablename__ = 'transactions'
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    recipient_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True)
+    amount = db.Column(db.Float, nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+    tx_hash = db.Column(db.String(128), unique=True, nullable=True)
+    status = db.Column(db.String(20), default='pending')  # pending, completed, failed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "sender_id": self.sender_id,
+            "recipient_id": self.recipient_id,
+            "amount": self.amount,
+            "description": self.description,
+            "tx_hash": self.tx_hash,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+    def __repr__(self):
+        return f"<Transaction {self.id} {self.status}>"
+
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timedelta
 from enum import Enum
