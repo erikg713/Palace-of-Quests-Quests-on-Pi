@@ -1,0 +1,170 @@
+/* ================================
+   Global Styles & Resets
+   ================================ */
+
+:root {
+  --font-main: 'Roboto', sans-serif;
+  --color-bg-gradient: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+  --color-bg-fallback: #1a2a6c;
+  --color-text: #f4f4f9;
+  --color-card-bg: #333;
+  --color-primary: #e91e63;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --transition-main: 0.3s cubic-bezier(.4,0,.2,1);
+  --shadow-btn: 0 2px 8px rgba(233, 30, 99, 0.15);
+  --shadow-card: 0 1px 8px rgba(0,0,0,0.12);
+  --break-md: 768px;
+  --break-lg: 1024px;
+  --break-xl: 1440px;
+}
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  line-height: 1.5;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-main);
+  background: var(--color-bg-fallback);
+  background: var(--color-bg-gradient);
+  color: var(--color-text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ================================
+   Layout Containers
+   ================================ */
+
+.container {
+  padding: 1rem;
+  max-width: 100%;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ================================
+   Buttons
+   ================================ */
+
+.button {
+  background: var(--color-primary);
+  color: #fff;
+  padding: 0.75rem 1.25rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  font-weight: 500;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  box-shadow: var(--shadow-btn);
+  transition: transform var(--transition-main), box-shadow var(--transition-main), background var(--transition-main);
+  outline: none;
+  user-select: none;
+  display: inline-block;
+}
+
+.button:hover,
+.button:focus {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 4px 16px rgba(233, 30, 99, 0.22);
+  background: #ce1655;
+}
+
+.button:active {
+  transform: translateY(1px) scale(0.97);
+}
+
+/* ================================
+   Marketplace Cards
+   ================================ */
+
+.marketplace-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--color-card-bg);
+  color: var(--color-text);
+  border-radius: var(--radius-md);
+  width: 100%;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.2s var(--transition-main);
+}
+
+.marketplace-card img {
+  width: 90%;
+  border-radius: var(--radius-md);
+  margin-bottom: 0.5rem;
+  object-fit: cover;
+}
+
+.marketplace-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.marketplace-card button {
+  width: 100%;
+}
+
+/* ================================
+   Responsive Breakpoints
+   ================================ */
+
+@media (min-width: 768px) {
+  .container {
+    max-width: 750px;
+    padding: 2rem;
+  }
+  .marketplace-card {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 2rem;
+    padding: 1.5rem;
+  }
+  .button {
+    font-size: 1.1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container {
+    max-width: 1000px;
+  }
+  .marketplace-card {
+    padding: 2rem;
+  }
+}
+
+@media (min-width: 1440px) {
+  .container {
+    max-width: 1200px;
+  }
+}
+
+/* ================================
+   Accessibility
+   ================================ */
+
+.button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px var(--color-primary);
+}
