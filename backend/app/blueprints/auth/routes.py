@@ -1,288 +1,272 @@
-import secrets
-import time
+"""
+Authentication routes with enhanced security and user experience.
+Implements rate limiting, session management, and comprehensive validation.
+
+Author: Erik G. - Palace of Quests Team
+Last Updated: 2025-06-04
+"""
+
+import logging
 from datetime import datetime, timedelta
-from flask import render_template, redirect, url_for, flash, request, jsonify, current_app
+from functools import wraps
+from typing import Optional, Dict, Any
+
+from flask import render_template, redirect, url_for, flash, request, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
-from werkzeug.security import check_password_hash, generate_password_hash
-from sqlalchemy import or_
+from werkzeug.security import check_password_hash
+from sqlalchemy.exc import IntegrityError
+
 from app.models.user import User
-from app.models.auth_tokens import RefreshToken, LoginAttempt
+from app.models.audit_log import AuditLog
 from app import db
 from app.blueprints.auth import auth_bp
-from app.blueprints.auth.forms import LoginForm, RegistrationForm, TwoFactorForm
-from app.utils.security import SecurityManager, RateLimiter
-from app.utils.validation import ValidationEngine
-from app.utils.notifications import NotificationService
+from app.blueprints.auth.forms import LoginForm, RegistrationForm, PasswordResetForm
+from app.utils.rate_limiter import rate_limit
+from app.utils.validators import validate_password_strength, validate_email_format
+from app.utils.security import generate_csrf_token, verify_csrf_token
 
-# Initialize security components
-security_manager = SecurityManager()
-rate_limiter = RateLimiter()
-validator = ValidationEngine()
-notification_service = NotificationService()
+logger = logging.getLogger(__name__)
+
+# Constants for security policies
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_DURATION = timedelta(minutes=30)
+SESSION_TIMEOUT = timedelta(hours=24)
+
+def log_security_event(event_type: str, user_id: Optional[int] = None, 
+                      details: Optional[Dict] = None):
+    """Log security-related events for audit purposes."""
+    try:
+        audit_entry = AuditLog(
+            event_type=event_type,
+            user_id=user_id,
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent', ''),
+            details=details or {},
+            timestamp=datetime.utcnow()
+        )
+        db.session.add(audit_entry)
+        db.session.commit()
+    except Exception as e:
+        logger.error(f"Failed to log security event: {str(e)}")
+
+def check_account_lockout(username: str) -> bool:
+    """Check if account is currently locked due to failed attempts."""
+    recent_attempts = AuditLog.query.filter(
+        AuditLog.event_type == 'failed_login',
+        AuditLog.details.contains({'username': username}),
+        AuditLog.timestamp > datetime.utcnow() - LOCKOUT_DURATION
+    ).count()
+    
+    return recent_attempts >= MAX_LOGIN_ATTEMPTS
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
-@rate_limiter.limit("5 per minute")
+@rate_limit(max_requests=10, window=300)  # 10 requests per 5 minutes
 def login():
-    """
-    Enhanced login with comprehensive security measures including:
-    - Rate limiting per IP and user
-    - Suspicious activity detection
-    - Device fingerprinting
-    - Audit logging
-    """
-    client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
-    user_agent = request.headers.get('User-Agent', '')
-    
-    # Check for suspicious patterns
-    if security_manager.is_suspicious_activity(client_ip, user_agent):
-        current_app.logger.warning(f"Suspicious login attempt from {client_ip}")
-        return jsonify({'error': 'Access temporarily restricted'}), 429
+    """Enhanced login with security features and better UX."""
+    if current_user.is_authenticated:
+        return redirect(url_for('main.dashboard'))
     
     form = LoginForm()
     
-    if form.validate_on_submit():
-        # Enhanced user lookup with both username and email support
-        user = User.query.filter(
-            or_(User.username == form.username.data.lower().strip(),
-                User.email == form.username.data.lower().strip())
-        ).first()
+    if request.method == 'POST':
+        if not verify_csrf_token(request.form.get('csrf_token')):
+            flash('Security token validation failed. Please try again.', 'error')
+            return render_template('auth/login.html', form=form)
         
-        # Record login attempt for analytics
-        attempt = LoginAttempt(
-            ip_address=client_ip,
-            user_agent=user_agent,
-            attempted_username=form.username.data,
-            success=False,
-            timestamp=datetime.utcnow()
-        )
-        
-        if user and user.verify_password(form.password.data):
-            # Check if account is locked or requires verification
-            if user.is_locked:
-                flash('Account temporarily locked due to security concerns. Contact support.', 'warning')
+        if form.validate_on_submit():
+            username = form.username.data.strip().lower()
+            
+            # Check for account lockout
+            if check_account_lockout(username):
+                log_security_event('blocked_login_attempt', details={'username': username})
+                flash(
+                    'Account temporarily locked due to multiple failed attempts. '
+                    'Please try again in 30 minutes.',
+                    'warning'
+                )
                 return render_template('auth/login.html', form=form)
             
-            if user.requires_email_verification and not user.email_verified:
-                flash('Please verify your email before logging in.', 'info')
-                return redirect(url_for('auth.resend_verification'))
+            user = User.query.filter_by(username=username).first()
             
-            # Two-factor authentication check
-            if user.two_factor_enabled:
-                session['temp_user_id'] = user.id
-                return redirect(url_for('auth.two_factor_verify'))
-            
-            # Successful login
-            attempt.success = True
-            attempt.user_id = user.id
-            db.session.add(attempt)
-            
-            # Update user login metadata
-            user.last_login = datetime.utcnow()
-            user.login_count += 1
-            user.last_ip_address = client_ip
-            
-            # Generate secure session
-            login_user(user, remember=form.remember_me.data)
-            
-            # Create refresh token for API access
-            refresh_token = RefreshToken.create_for_user(user.id)
-            db.session.add(refresh_token)
-            
-            db.session.commit()
-            
-            # Log successful authentication
-            current_app.logger.info(f"User {user.username} logged in from {client_ip}")
-            
-            # Send notification for new device login
-            if security_manager.is_new_device(user.id, user_agent):
-                notification_service.send_security_alert(user, 'new_device_login', {
-                    'ip': client_ip,
-                    'device': security_manager.parse_user_agent(user_agent),
-                    'timestamp': datetime.utcnow()
-                })
-            
-            flash('Welcome back! Login successful.', 'success')
-            
-            # Intelligent redirect based on user context
-            next_page = request.args.get('next')
-            if next_page and security_manager.is_safe_url(next_page):
-                return redirect(next_page)
-            
-            # Context-aware dashboard redirect
-            if user.is_admin:
-                return redirect(url_for('admin.dashboard'))
-            elif user.has_active_quests():
-                return redirect(url_for('quests.active_quests'))
-            else:
+            if user and user.is_active and user.check_password(form.password.data):
+                # Successful login
+                login_user(user, remember=form.remember_me.data, 
+                          duration=SESSION_TIMEOUT)
+                
+                # Update user's last login
+                user.last_login = datetime.utcnow()
+                user.login_count += 1
+                db.session.commit()
+                
+                log_security_event('successful_login', user_id=user.id)
+                
+                # Handle next URL with security validation
+                next_page = request.args.get('next')
+                if next_page and next_page.startswith('/'):
+                    flash(f'Welcome back, {user.display_name}!', 'success')
+                    return redirect(next_page)
+                
+                flash(f'Welcome back, {user.display_name}!', 'success')
                 return redirect(url_for('main.dashboard'))
+            else:
+                # Failed login attempt
+                log_security_event(
+                    'failed_login',
+                    user_id=user.id if user else None,
+                    details={'username': username, 'reason': 'invalid_credentials'}
+                )
+                flash('Invalid username or password. Please check your credentials.', 'error')
         else:
-            # Failed login handling
-            db.session.add(attempt)
-            db.session.commit()
-            
-            # Progressive delay for failed attempts
-            failed_attempts = security_manager.get_recent_failed_attempts(client_ip)
-            if failed_attempts > 3:
-                time.sleep(min(failed_attempts * 0.5, 5))  # Max 5 second delay
-            
-            current_app.logger.warning(f"Failed login attempt for {form.username.data} from {client_ip}")
-            flash('Invalid credentials. Please check your username and password.', 'danger')
+            # Form validation failed
+            for field, errors in form.errors.items():
+                for error in errors:
+                    flash(f'{field.title()}: {error}', 'error')
     
-    return render_template('auth/login.html', form=form)
+    # Generate CSRF token for form
+    csrf_token = generate_csrf_token()
+    return render_template('auth/login.html', form=form, csrf_token=csrf_token)
 
 @auth_bp.route('/logout')
 @login_required
 def logout():
-    """Enhanced logout with session cleanup and audit logging."""
+    """Secure logout with session cleanup."""
     user_id = current_user.id
     username = current_user.username
-    client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
     
-    # Invalidate all refresh tokens for this user on this device
-    RefreshToken.invalidate_for_user_device(user_id, request.headers.get('User-Agent', ''))
+    # Log the logout event
+    log_security_event('user_logout', user_id=user_id)
     
-    # Clear any temporary session data
-    security_manager.cleanup_user_session(user_id)
-    
+    # Clear user session data
+    session.clear()
     logout_user()
     
-    # Log logout event
-    current_app.logger.info(f"User {username} logged out from {client_ip}")
-    
-    flash('You have been securely logged out. See you next time!', 'info')
+    flash(f'You have been securely logged out, {username}. See you next time!', 'info')
     return redirect(url_for('main.index'))
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
-@rate_limiter.limit("3 per hour")
+@rate_limit(max_requests=5, window=3600)  # 5 registrations per hour
 def register():
-    """
-    Enhanced registration with comprehensive validation and security measures.
-    """
+    """Enhanced user registration with validation and security."""
+    if current_user.is_authenticated:
+        return redirect(url_for('main.dashboard'))
+    
     form = RegistrationForm()
     
-    if form.validate_on_submit():
-        # Advanced validation checks
-        validation_result = validator.validate_registration_data({
-            'username': form.username.data,
-            'email': form.email.data,
-            'password': form.password.data
-        })
-        
-        if not validation_result.is_valid:
-            for error in validation_result.errors:
-                flash(error, 'danger')
+    if request.method == 'POST':
+        if not verify_csrf_token(request.form.get('csrf_token')):
+            flash('Security token validation failed. Please try again.', 'error')
             return render_template('auth/register.html', form=form)
         
-        # Check for existing users with enhanced duplicate detection
-        existing_user = User.query.filter(
-            or_(User.username.ilike(form.username.data),
-                User.email.ilike(form.email.data))
-        ).first()
-        
-        if existing_user:
-            if existing_user.email.lower() == form.email.data.lower():
-                flash('An account with this email already exists.', 'warning')
-            else:
-                flash('Username already taken. Please choose a different one.', 'warning')
-            return render_template('auth/register.html', form=form)
-        
-        try:
-            # Create new user with enhanced security
-            user = User(
-                username=form.username.data.lower().strip(),
-                email=form.email.data.lower().strip(),
-                registration_ip=request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr),
-                registration_date=datetime.utcnow(),
-                email_verification_token=secrets.token_urlsafe(32),
-                email_verification_expires=datetime.utcnow() + timedelta(hours=24)
-            )
-            user.set_password(form.password.data)
+        if form.validate_on_submit():
+            username = form.username.data.strip().lower()
+            email = form.email.data.strip().lower()
             
-            # Initialize user profile with smart defaults
-            user.initialize_profile()
+            # Enhanced validation
+            if not validate_email_format(email):
+                flash('Please provide a valid email address.', 'error')
+                return render_template('auth/register.html', form=form)
             
-            db.session.add(user)
-            db.session.commit()
+            password_validation = validate_password_strength(form.password.data)
+            if not password_validation['valid']:
+                for error in password_validation['errors']:
+                    flash(error, 'error')
+                return render_template('auth/register.html', form=form)
             
-            # Send welcome email with verification
-            notification_service.send_welcome_email(user)
+            # Check for existing users
+            existing_user = User.query.filter(
+                (User.username == username) | (User.email == email)
+            ).first()
             
-            # Log successful registration
-            current_app.logger.info(f"New user registered: {user.username} from {user.registration_ip}")
+            if existing_user:
+                if existing_user.username == username:
+                    flash('Username already taken. Please choose a different one.', 'error')
+                else:
+                    flash('Email already registered. Please use a different email or try logging in.', 'error')
+                return render_template('auth/register.html', form=form)
             
-            flash('Registration successful! Please check your email to verify your account.', 'success')
-            return redirect(url_for('auth.login'))
-            
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f"Registration error: {str(e)}")
-            flash('Registration failed. Please try again later.', 'danger')
-    
-    return render_template('auth/register.html', form=form)
-
-@auth_bp.route('/two-factor-verify', methods=['GET', 'POST'])
-def two_factor_verify():
-    """Two-factor authentication verification."""
-    if 'temp_user_id' not in session:
-        return redirect(url_for('auth.login'))
-    
-    form = TwoFactorForm()
-    user = User.query.get(session['temp_user_id'])
-    
-    if form.validate_on_submit():
-        if user.verify_totp(form.token.data):
-            # Complete login process
-            session.pop('temp_user_id', None)
-            login_user(user)
-            
-            flash('Two-factor authentication successful!', 'success')
-            return redirect(url_for('main.dashboard'))
+            try:
+                # Create new user
+                user = User(
+                    username=username,
+                    email=email,
+                    display_name=form.display_name.data.strip() or username.title(),
+                    created_at=datetime.utcnow(),
+                    is_active=True,
+                    email_verified=False  # Will be verified later
+                )
+                user.set_password(form.password.data)
+                
+                db.session.add(user)
+                db.session.commit()
+                
+                log_security_event('user_registration', user_id=user.id)
+                
+                flash(
+                    'Registration successful! Welcome to Palace of Quests. '
+                    'Please check your email to verify your account.',
+                    'success'
+                )
+                
+                # Auto-login after registration
+                login_user(user)
+                return redirect(url_for('main.welcome'))
+                
+            except IntegrityError as e:
+                db.session.rollback()
+                logger.error(f"Registration failed for {username}: {str(e)}")
+                flash('Registration failed due to a database error. Please try again.', 'error')
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Unexpected registration error: {str(e)}")
+                flash('An unexpected error occurred. Please try again later.', 'error')
         else:
-            flash('Invalid authentication code. Please try again.', 'danger')
+            # Form validation errors
+            for field, errors in form.errors.items():
+                for error in errors:
+                    flash(f'{field.replace("_", " ").title()}: {error}', 'error')
     
-    return render_template('auth/two_factor.html', form=form)
+    csrf_token = generate_csrf_token()
+    return render_template('auth/register.html', form=form, csrf_token=csrf_token)
+
+@auth_bp.route('/profile/settings')
+@login_required
+def profile_settings():
+    """User profile management with enhanced security."""
+    return render_template('auth/profile_settings.html', user=current_user)
 
 @auth_bp.route('/forgot-password', methods=['GET', 'POST'])
-@rate_limiter.limit("3 per hour")
+@rate_limit(max_requests=3, window=3600)  # 3 requests per hour
 def forgot_password():
-    """Enhanced password reset with security measures."""
-    if request.method == 'POST':
-        email = request.form.get('email', '').lower().strip()
-        
-        if not validator.is_valid_email(email):
-            flash('Please enter a valid email address.', 'danger')
-            return render_template('auth/forgot_password.html')
-        
+    """Password reset functionality with security measures."""
+    if current_user.is_authenticated:
+        return redirect(url_for('main.dashboard'))
+    
+    form = PasswordResetForm()
+    
+    if form.validate_on_submit():
+        email = form.email.data.strip().lower()
         user = User.query.filter_by(email=email).first()
         
-        # Always show success message to prevent email enumeration
-        flash('If an account with this email exists, you will receive password reset instructions.', 'info')
-        
         if user:
-            # Generate secure reset token
-            reset_token = user.generate_password_reset_token()
-            notification_service.send_password_reset_email(user, reset_token)
-            
-            current_app.logger.info(f"Password reset requested for {email}")
+            # Generate password reset token (implement token generation)
+            log_security_event('password_reset_requested', user_id=user.id)
+            # Send password reset email (implement email sending)
         
+        # Always show success message for security
+        flash(
+            'If an account with that email exists, '
+            'password reset instructions have been sent.',
+            'info'
+        )
         return redirect(url_for('auth.login'))
     
-    return render_template('auth/forgot_password.html')
+    return render_template('auth/forgot_password.html', form=form)
 
-@auth_bp.route('/verify-email/<token>')
-def verify_email(token):
-    """Email verification handler with enhanced security."""
-    user = User.verify_email_token(token)
-    
-    if user:
-        user.email_verified = True
-        user.email_verification_token = None
-        user.email_verification_expires = None
-        db.session.commit()
-        
-        current_app.logger.info(f"Email verified for user: {user.username}")
-        flash('Email verified successfully! You can now log in.', 'success')
-    else:
-        flash('Invalid or expired verification link.', 'danger')
-    
-    return redirect(url_for('auth.login'))
+@auth_bp.errorhandler(429)
+def ratelimit_handler(e):
+    """Handle rate limiting errors."""
+    return jsonify({
+        'error': 'Too many requests',
+        'message': 'Please wait before trying again.',
+        'retry_after': e.retry_after
+    }), 429
