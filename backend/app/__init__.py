@@ -5,7 +5,35 @@ import hmac
 import json
 from flask import Flask, request, jsonify, session, g
 from functools import wraps
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from flask_jwt_extended import JWTManager
 
+db = SQLAlchemy()
+migrate = Migrate()
+jwt = JWTManager()
+
+def create_app():
+    app = Flask(__name__)
+    app.config.from_object('app.config.Config')
+
+    # Initialize extensions
+    db.init_app(app)
+    migrate.init_app(app, db)
+    jwt.init_app(app)
+
+    # Register blueprints
+    from app.blueprints.auth import auth_bp
+    from app.blueprints.quests import quests_bp
+    from app.blueprints.marketplace import marketplace_bp
+    from app.blueprints.transactions import transactions_bp
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(quests_bp, url_prefix='/api/quests')
+    app.register_blueprint(marketplace_bp, url_prefix='/api/marketplace')
+    app.register_blueprint(transactions_bp, url_prefix='/api/transactions')
+
+    return app
 def verify_pi_auth(payload: dict, signature: str, pi_api_key: str) -> bool:
     """
     Verifies the Pi Network authentication payload using HMAC SHA256.
