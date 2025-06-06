@@ -9,6 +9,7 @@ rewards, refunds, and blockchain integration.
 import uuid
 import hashlib
 import json
+import logging
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from enum import Enum
@@ -18,7 +19,8 @@ from sqlalchemy import event, Index
 
 from app import db
 
-# --- Enums for type safety and clarity ---
+logger = logging.getLogger(__name__)
+
 class TransactionType(Enum):
     QUEST_REWARD = "quest_reward"
     MARKETPLACE_PURCHASE = "marketplace_purchase"
@@ -42,9 +44,10 @@ class TransactionStatus(Enum):
 
 class Transaction(db.Model):
     """
-    Comprehensive transaction system with audit trails and economic controls.
-    Built for high-volume Pi Network transactions with proper accounting.
+    Comprehensive transaction system with audit trails and economic controls
+    for high-volume Pi Network transactions.
     """
+
     __tablename__ = 'transactions'
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -91,9 +94,9 @@ class Transaction(db.Model):
     user_agent = db.Column(db.String(500))
 
     # Relationships
-    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_transactions')
-    recipient = db.relationship('User', foreign_keys=[recipient_id], backref='received_transactions')
-    reviewer = db.relationship('User', foreign_keys=[reviewed_by])
+    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_transactions', lazy='joined')
+    recipient = db.relationship('User', foreign_keys=[recipient_id], backref='received_transactions', lazy='joined')
+    reviewer = db.relationship('User', foreign_keys=[reviewed_by], lazy='joined')
 
     __table_args__ = (
         Index('idx_transaction_user_type', 'sender_id', 'transaction_type'),
@@ -105,18 +108,30 @@ class Transaction(db.Model):
         super().__init__(**kwargs)
         if not self.transaction_hash:
             self.transaction_hash = self._generate_transaction_hash()
-        if not self.net_amount and self.amount:
+        if self.net_amount is None and self.amount is not None:
             self.net_amount = Decimal(self.amount) - (self.fee or Decimal('0.0'))
+        if not self.status:
+            self.status = TransactionStatus.PENDING
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<Transaction {self.id[:8]} {self.amount} Pi ({self.status.value})>'
 
     def _generate_transaction_hash(self) -> str:
+        """Generate a unique hash for integrity and quick lookup."""
         hash_data = f"{self.id}{self.sender_id}{self.recipient_id}{self.amount}{datetime.utcnow().isoformat()}"
         return hashlib.sha256(hash_data.encode()).hexdigest()
 
     @classmethod
-    def create_quest_reward(cls, user_id: str, quest_id: int, amount: Decimal, description: str = None) -> 'Transaction':
+    def create_quest_reward(
+        cls,
+        user_id: str,
+        quest_id: int,
+        amount: Decimal,
+        description: str = None
+    ) -> 'Transaction':
+        """
+        Factory for quest reward transactions.
+        """
         return cls(
             recipient_id=user_id,
             amount=amount,
@@ -129,8 +144,18 @@ class Transaction(db.Model):
         )
 
     @classmethod
-    def create_user_transfer(cls, sender_id: str, recipient_id: str, amount: Decimal, description: str, fee: Decimal = None) -> 'Transaction':
-        calculated_fee = fee or cls.calculate_transfer_fee(amount)
+    def create_user_transfer(
+        cls,
+        sender_id: str,
+        recipient_id: str,
+        amount: Decimal,
+        description: str,
+        fee: Decimal = None
+    ) -> 'Transaction':
+        """
+        Factory for peer-to-peer transfer transactions.
+        """
+        calculated_fee = fee if fee is not None else cls.calculate_transfer_fee(amount)
         return cls(
             sender_id=sender_id,
             recipient_id=recipient_id,
@@ -144,16 +169,25 @@ class Transaction(db.Model):
 
     @staticmethod
     def calculate_transfer_fee(amount: Decimal) -> Decimal:
+        """
+        Calculate a transfer fee based on amount tiers.
+        """
+        if not isinstance(amount, Decimal):
+            raise TypeError("Amount must be a Decimal type")
         if amount <= Decimal('10.0'):
             return Decimal('0.01')
         elif amount <= Decimal('100.0'):
-            return amount * Decimal('0.01')
-        else:
-            return amount * Decimal('0.005')
+            return (amount * Decimal('0.01')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        return (amount * Decimal('0.005')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     def process_transaction(self) -> tuple[bool, str]:
+        """
+        Process the transaction: update balances, handle status, and commit.
+        Returns (success, message).
+        """
         if self.status != TransactionStatus.PENDING:
             return False, "Transaction is not in pending status"
+
         try:
             from app.models.user import User  # Avoid circular import
 
@@ -169,7 +203,7 @@ class Transaction(db.Model):
                 if getattr(sender, "pi_balance", Decimal('0.0')) < total_deduction:
                     raise ValueError("Insufficient funds")
                 sender.pi_balance -= total_deduction
-                sender.total_pi_spent = getattr(sender, "total_pi_spent", 0) + float(self.amount)
+                sender.total_pi_spent = float(getattr(sender, "total_pi_spent", 0)) + float(self.amount)
                 self.balance_after_sender = sender.pi_balance
 
             if self.recipient_id:
@@ -178,7 +212,7 @@ class Transaction(db.Model):
                     raise ValueError("Recipient unavailable or locked.")
                 self.balance_before_recipient = getattr(recipient, "pi_balance", None)
                 recipient.pi_balance += self.net_amount
-                recipient.total_pi_earned = getattr(recipient, "total_pi_earned", 0) + float(self.net_amount)
+                recipient.total_pi_earned = float(getattr(recipient, "total_pi_earned", 0)) + float(self.net_amount)
                 self.balance_after_recipient = recipient.pi_balance
 
             self.status = TransactionStatus.COMPLETED
@@ -189,13 +223,17 @@ class Transaction(db.Model):
         except Exception as e:
             db.session.rollback()
             self.status = TransactionStatus.FAILED
-            self.internal_notes = f"Processing failed: {str(e)}"
-            self._create_audit_log(f"Transaction failed: {str(e)}")
+            self.internal_notes = f"Processing failed: {repr(e)}"
+            logger.error(f"Transaction {self.id} failed: {e}")
+            self._create_audit_log(f"Transaction failed: {repr(e)}")
             db.session.commit()
             return False, str(e)
 
     def cancel_transaction(self, reason: str = None) -> bool:
-        if self.status not in [TransactionStatus.PENDING, TransactionStatus.PROCESSING]:
+        """
+        Cancel a pending or processing transaction.
+        """
+        if self.status not in {TransactionStatus.PENDING, TransactionStatus.PROCESSING}:
             return False
         self.status = TransactionStatus.CANCELLED
         if reason:
@@ -204,6 +242,9 @@ class Transaction(db.Model):
         return True
 
     def refund_transaction(self, reason: str = None, partial_amount: Decimal = None) -> 'Transaction':
+        """
+        Create a refund transaction and update original transaction status.
+        """
         if self.status != TransactionStatus.COMPLETED:
             raise ValueError("Can only refund completed transactions")
         refund_amount = partial_amount or self.net_amount
@@ -226,8 +267,13 @@ class Transaction(db.Model):
         return refund_transaction
 
     def assess_fraud_risk(self) -> float:
+        """
+        Evaluate risk using configurable rules. Sets risk_score and flags.
+        Returns a float risk score (0-100).
+        """
         from app.models.user import User
         risk_factors = []
+        # Pluggable risk rules for extensibility
         if self.amount > Decimal('1000.0'):
             risk_factors.append(('high_amount', 20))
         if self.sender_id:
@@ -249,6 +295,9 @@ class Transaction(db.Model):
         return self.risk_score
 
     def _create_audit_log(self, action: str) -> None:
+        """
+        Append audit log entry to internal notes with UTC timestamp.
+        """
         timestamp = datetime.utcnow().isoformat()
         audit_entry = f"[{timestamp}] {action}"
         if self.internal_notes:
@@ -258,10 +307,16 @@ class Transaction(db.Model):
 
     @hybrid_property
     def is_reversible(self) -> bool:
+        """
+        Transaction can be reversed if completed and not a penalty/refund.
+        """
         return (self.status == TransactionStatus.COMPLETED and
-                self.transaction_type not in [TransactionType.REFUND, TransactionType.PENALTY])
+                self.transaction_type not in {TransactionType.REFUND, TransactionType.PENALTY})
 
     def get_metadata(self) -> dict:
+        """
+        Safely decode metadata as JSON.
+        """
         if not self.metadata:
             return {}
         try:
@@ -270,9 +325,16 @@ class Transaction(db.Model):
             return {}
 
     def set_metadata(self, metadata_dict: dict) -> None:
+        """
+        Store dict metadata as JSON.
+        """
         self.metadata = json.dumps(metadata_dict)
 
     def to_dict(self, include_sensitive: bool = False) -> dict:
+        """
+        Serialize transaction for API or logging.
+        Set include_sensitive=True to include sensitive fields.
+        """
         transaction_data = {
             'id': self.id,
             'amount': str(self.amount),
@@ -298,10 +360,11 @@ class Transaction(db.Model):
             })
         return transaction_data
 
-# Event listeners for auto-processing
 @event.listens_for(Transaction, 'after_insert')
 def auto_process_safe_transactions(mapper, connection, target):
-    """Automatically process low-risk transactions."""
+    """
+    Automatically process low-risk transactions (production: enqueue to worker).
+    """
     if target.assess_fraud_risk() < 30 and not target.requires_manual_review:
-        # In production, enqueue a background task or process immediately
+        # TODO: In production, enqueue a background task or process immediately.
         pass
