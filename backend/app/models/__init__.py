@@ -1,4 +1,25 @@
 """
+Database Models Package
+Organized model definitions with proper relationships and validation.
+"""
+
+from .user import User
+from .quest import Quest, QuestProgress, QuestReward, QuestCategory
+from .marketplace import Item, ItemCategory, Purchase
+from .transaction import Transaction, TransactionType
+from .notification import Notification
+from .audit import AuditLog
+
+__all__ = [
+    'User',
+    'Quest', 'QuestProgress', 'QuestReward', 'QuestCategory',
+    'Item', 'ItemCategory', 'Purchase',
+    'Transaction', 'TransactionType',
+    'Notification',
+    'AuditLog'
+]
+
+"""
 app.models
 
 This package defines the ORM models for the Palace of Quests (Pi Quest) application,
