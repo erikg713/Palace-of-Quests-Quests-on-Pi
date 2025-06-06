@@ -1,23 +1,47 @@
 from flask import Blueprint, request, jsonify
 from models import User, Transaction, db
+from sqlalchemy.exc import SQLAlchemyError
 
-economy_bp = Blueprint('economy', __name__)
+economy_bp = Blueprint("economy", __name__)
 
-@economy_bp.route('/balance', methods=['GET'])
+# --- Constants ---
+_COMPLETED_STATUS = "completed"
+
+
+@economy_bp.route("/balance", methods=["GET"])
 def get_balance():
-    user_id = request.args.get('user_id')
+    """
+    GET /balance?user_id=<user_id>
+    Returns the balance for a specific user.
+    """
+    user_id = request.args.get("user_id", type=int)
     if not user_id:
-        return jsonify({"error": "Missing required parameter: user_id"}), 400
-    
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-    
-    return jsonify({"user_id": user.id, "balance": user.balance}), 200
+        return jsonify(error="Missing or invalid 'user_id' parameter."), 400
 
-@economy_bp.route('/earnings', methods=['GET'])
+    try:
+        user = User.query.get(user_id)
+        if user is None:
+            return jsonify(error="User not found."), 404
+        return jsonify(user_id=user.id, balance=user.balance), 200
+    except SQLAlchemyError:
+        db.session.rollback()
+        return jsonify(error="Database error occurred."), 500
+
+
+@economy_bp.route("/earnings", methods=["GET"])
 def get_earnings():
-    # Sum of all completed transactions (this simulates the total earnings)
-    total_earnings = db.session.query(db.func.sum(Transaction.amount))\
-        .filter(Transaction.status == 'completed').scalar() or 0.0
-    return jsonify({"total_earnings": total_earnings}), 200
+    """
+    GET /earnings
+    Returns the total sum of completed transaction amounts.
+    """
+    try:
+        total = (
+            db.session.query(db.func.coalesce(db.func.sum(Transaction.amount), 0.0))
+            .filter_by(status=_COMPLETED_STATUS)
+            .scalar()
+        )
+        # Always return float for frontend consistency
+        return jsonify(total_earnings=float(total)), 200
+    except SQLAlchemyError:
+        db.session.rollback()
+        return jsonify(error="Database error occurred."), 500
