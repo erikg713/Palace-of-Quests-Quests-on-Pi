@@ -1,370 +1,424 @@
 """
-Transaction model for Pi payments and rewards.
-
-Professional, auditable, and extensible transaction record for all economic actions
-in Palace of Quests. Handles user-to-user payments, marketplace, subscriptions,
-rewards, refunds, and blockchain integration.
+Transaction System for Pi Network Integration
+Comprehensive transaction handling with escrow and security features.
 """
 
 import uuid
-import hashlib
-import json
-import logging
+import enum
 from datetime import datetime, timedelta
-from decimal import Decimal, ROUND_HALF_UP
-from enum import Enum
-
+from typing import Dict, Any, Optional
+from decimal import Decimal
+from sqlalchemy import event
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy import event, Index
 
-from app import db
+from app.extensions import db
+from app.core.exceptions import ValidationError, InsufficientFundsError
 
-logger = logging.getLogger(__name__)
 
-class TransactionType(Enum):
+class TransactionType(enum.Enum):
+    """Transaction type enumeration."""
+    TRANSFER = "transfer"
     QUEST_REWARD = "quest_reward"
     MARKETPLACE_PURCHASE = "marketplace_purchase"
     MARKETPLACE_SALE = "marketplace_sale"
-    USER_TRANSFER = "user_transfer"
-    PREMIUM_SUBSCRIPTION = "premium_subscription"
     ADMIN_ADJUSTMENT = "admin_adjustment"
+    WITHDRAWAL = "withdrawal"
+    DEPOSIT = "deposit"
+    COMMISSION = "commission"
     REFUND = "refund"
-    PENALTY = "penalty"
-    BONUS_REWARD = "bonus_reward"
-    ACHIEVEMENT_REWARD = "achievement_reward"
-    DAILY_LOGIN_BONUS = "daily_login_bonus"
 
-class TransactionStatus(Enum):
+
+class TransactionStatus(enum.Enum):
+    """Transaction status enumeration."""
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    DISPUTED = "disputed"
     REFUNDED = "refunded"
+
 
 class Transaction(db.Model):
     """
-    Comprehensive transaction system with audit trails and economic controls
-    for high-volume Pi Network transactions.
+    Comprehensive transaction model with Pi Network integration.
+    Handles all financial operations with proper audit trails.
     """
-
+    
     __tablename__ = 'transactions'
-
+    
+    # Primary identification
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    transaction_hash = db.Column(db.String(64), unique=True, nullable=False, index=True)
-
-    sender_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True, index=True)
-    recipient_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True, index=True)
-
-    amount = db.Column(db.Numeric(18, 8), nullable=False)
-    fee = db.Column(db.Numeric(18, 8), default=Decimal('0.0'))
-    net_amount = db.Column(db.Numeric(18, 8), nullable=False)
-
-    transaction_type = db.Column(db.Enum(TransactionType), nullable=False, index=True)
-    status = db.Column(db.Enum(TransactionStatus), default=TransactionStatus.PENDING, index=True)
-    category = db.Column(db.String(50), index=True)
-
-    description = db.Column(db.String(255), nullable=False)
-    internal_notes = db.Column(db.Text)
-    reference_id = db.Column(db.String(100), index=True)
-    reference_type = db.Column(db.String(50))
-
-    pi_transaction_id = db.Column(db.String(100), unique=True, index=True)
-    blockchain_confirmations = db.Column(db.Integer, default=0)
-    blockchain_status = db.Column(db.String(20))
-
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
-    processed_at = db.Column(db.DateTime, index=True)
-    completed_at = db.Column(db.DateTime)
-    expires_at = db.Column(db.DateTime)
-
-    risk_score = db.Column(db.Float, default=0.0)
-    fraud_flags = db.Column(db.Text)
-    requires_manual_review = db.Column(db.Boolean, default=False)
-    reviewed_by = db.Column(db.String(36), db.ForeignKey('users.id'))
-    reviewed_at = db.Column(db.DateTime)
-
-    balance_before_sender = db.Column(db.Numeric(18, 8))
-    balance_after_sender = db.Column(db.Numeric(18, 8))
-    balance_before_recipient = db.Column(db.Numeric(18, 8))
-    balance_after_recipient = db.Column(db.Numeric(18, 8))
-
-    metadata = db.Column(db.Text)
-    ip_address = db.Column(db.String(45))
-    user_agent = db.Column(db.String(500))
-
+    reference_number = db.Column(db.String(20), unique=True, nullable=False)
+    
+    # Transaction participants
+    sender_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True)
+    receiver_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True)
+    
+    # Transaction details
+    transaction_type = db.Column(db.Enum(TransactionType), nullable=False)
+    amount = db.Column(db.Numeric(precision=20, scale=8), nullable=False)
+    currency = db.Column(db.String(10), default='PI', nullable=False)
+    description = db.Column(db.String(500), nullable=True)
+    
+    # Status and processing
+    status = db.Column(db.Enum(TransactionStatus), default=TransactionStatus.PENDING, nullable=False)
+    priority = db.Column(db.Integer, default=5, nullable=False)  # 1-10, 1 being highest
+    
+    # Pi Network integration
+    pi_transaction_id = db.Column(db.String(100), unique=True, nullable=True)
+    pi_payment_id = db.Column(db.String(100), unique=True, nullable=True)
+    blockchain_hash = db.Column(db.String(128), nullable=True)
+    
+    # Fees and calculations
+    base_fee = db.Column(db.Numeric(precision=20, scale=8), default=0, nullable=False)
+    network_fee = db.Column(db.Numeric(precision=20, scale=8), default=0, nullable=False)
+    total_fee = db.Column(db.Numeric(precision=20, scale=8), default=0, nullable=False)
+    net_amount = db.Column(db.Numeric(precision=20, scale=8), nullable=False)
+    
+    # Reference data
+    reference_type = db.Column(db.String(50), nullable=True)  # quest, marketplace_item, etc.
+    reference_id = db.Column(db.String(36), nullable=True)
+    metadata = db.Column(db.JSON, nullable=True)
+    
+    # Processing timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    processed_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    
+    # Error handling
+    error_code = db.Column(db.String(50), nullable=True)
+    error_message = db.Column(db.Text, nullable=True)
+    retry_count = db.Column(db.Integer, default=0, nullable=False)
+    
     # Relationships
-    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_transactions', lazy='joined')
-    recipient = db.relationship('User', foreign_keys=[recipient_id], backref='received_transactions', lazy='joined')
-    reviewer = db.relationship('User', foreign_keys=[reviewed_by], lazy='joined')
-
+    sender = db.relationship('User', backref='sent_transactions', foreign_keys=[sender_id])
+    receiver = db.relationship('User', backref='received_transactions', foreign_keys=[receiver_id])
+    
+    # Constraints
     __table_args__ = (
-        Index('idx_transaction_user_type', 'sender_id', 'transaction_type'),
-        Index('idx_transaction_status_created', 'status', 'created_at'),
-        Index('idx_transaction_reference', 'reference_type', 'reference_id'),
+        db.CheckConstraint('amount > 0', name='valid_amount'),
+        db.CheckConstraint('priority >= 1 AND priority <= 10', name='valid_priority'),
+        db.CheckConstraint('retry_count >= 0', name='valid_retry_count'),
+        db.Index('idx_transaction_status_created', 'status', 'created_at'),
+        db.Index('idx_transaction_type_date', 'transaction_type', 'created_at'),
+        db.Index('idx_transaction_reference', 'reference_type', 'reference_id'),
+        db.Index('idx_transaction_participants', 'sender_id', 'receiver_id'),
     )
-
+    
     def __init__(self, **kwargs):
+        """Initialize transaction with auto-generated reference number."""
+        if 'reference_number' not in kwargs:
+            kwargs['reference_number'] = self._generate_reference_number()
+        
+        # Calculate net amount
+        amount = kwargs.get('amount', 0)
+        total_fee = kwargs.get('total_fee', 0)
+        kwargs['net_amount'] = amount - total_fee
+        
+        # Set expiration for pending transactions
+        if 'expires_at' not in kwargs and kwargs.get('status') == TransactionStatus.PENDING:
+            kwargs['expires_at'] = datetime.utcnow() + timedelta(hours=24)
+        
         super().__init__(**kwargs)
-        if not self.transaction_hash:
-            self.transaction_hash = self._generate_transaction_hash()
-        if self.net_amount is None and self.amount is not None:
-            self.net_amount = Decimal(self.amount) - (self.fee or Decimal('0.0'))
-        if not self.status:
-            self.status = TransactionStatus.PENDING
-
-    def __repr__(self) -> str:
-        return f'<Transaction {self.id[:8]} {self.amount} Pi ({self.status.value})>'
-
-    def _generate_transaction_hash(self) -> str:
-        """Generate a unique hash for integrity and quick lookup."""
-        hash_data = f"{self.id}{self.sender_id}{self.recipient_id}{self.amount}{datetime.utcnow().isoformat()}"
-        return hashlib.sha256(hash_data.encode()).hexdigest()
-
-    @classmethod
-    def create_quest_reward(
-        cls,
-        user_id: str,
-        quest_id: int,
-        amount: Decimal,
-        description: str = None
-    ) -> 'Transaction':
-        """
-        Factory for quest reward transactions.
-        """
-        return cls(
-            recipient_id=user_id,
-            amount=amount,
-            net_amount=amount,
-            transaction_type=TransactionType.QUEST_REWARD,
-            description=description or "Quest completion reward",
-            reference_id=str(quest_id),
-            reference_type='quest',
-            category='game_reward'
-        )
-
-    @classmethod
-    def create_user_transfer(
-        cls,
-        sender_id: str,
-        recipient_id: str,
-        amount: Decimal,
-        description: str,
-        fee: Decimal = None
-    ) -> 'Transaction':
-        """
-        Factory for peer-to-peer transfer transactions.
-        """
-        calculated_fee = fee if fee is not None else cls.calculate_transfer_fee(amount)
-        return cls(
-            sender_id=sender_id,
-            recipient_id=recipient_id,
-            amount=amount,
-            fee=calculated_fee,
-            net_amount=amount - calculated_fee,
-            transaction_type=TransactionType.USER_TRANSFER,
-            description=description,
-            category='p2p_transfer'
-        )
-
+    
+    @hybrid_property
+    def is_expired(self) -> bool:
+        """Check if transaction has expired."""
+        return (self.expires_at is not None and 
+                self.expires_at <= datetime.utcnow() and
+                self.status == TransactionStatus.PENDING)
+    
+    @hybrid_property
+    def processing_time(self) -> Optional[timedelta]:
+        """Calculate transaction processing time."""
+        if self.completed_at:
+            return self.completed_at - self.created_at
+        return None
+    
     @staticmethod
-    def calculate_transfer_fee(amount: Decimal) -> Decimal:
+    def _generate_reference_number() -> str:
+        """Generate unique transaction reference number."""
+        timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+        random_suffix = str(uuid.uuid4())[:6].upper()
+        return f"TXN{timestamp}{random_suffix}"
+    
+    def calculate_fees(self) -> None:
+        """Calculate transaction fees based on type and amount."""
+        # Base fee calculation
+        if self.transaction_type == TransactionType.TRANSFER:
+            self.base_fee = max(Decimal('0.01'), self.amount * Decimal('0.01'))  # 1% or min 0.01 PI
+        elif self.transaction_type in [TransactionType.MARKETPLACE_PURCHASE, TransactionType.MARKETPLACE_SALE]:
+            self.base_fee = self.amount * Decimal('0.025')  # 2.5% for marketplace
+        elif self.transaction_type == TransactionType.WITHDRAWAL:
+            self.base_fee = max(Decimal('0.1'), self.amount * Decimal('0.02'))  # 2% or min 0.1 PI
+        else:
+            self.base_fee = Decimal('0')  # No fee for quest rewards, deposits, etc.
+        
+        # Network fee (simulated - would integrate with Pi Network)
+        self.network_fee = Decimal('0.001') if self.amount > 0 else Decimal('0')
+        
+        # Total fee
+        self.total_fee = self.base_fee + self.network_fee
+        
+        # Recalculate net amount
+        self.net_amount = self.amount - self.total_fee
+    
+    def process(self) -> bool:
         """
-        Calculate a transfer fee based on amount tiers.
-        """
-        if not isinstance(amount, Decimal):
-            raise TypeError("Amount must be a Decimal type")
-        if amount <= Decimal('10.0'):
-            return Decimal('0.01')
-        elif amount <= Decimal('100.0'):
-            return (amount * Decimal('0.01')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        return (amount * Decimal('0.005')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-
-    def process_transaction(self) -> tuple[bool, str]:
-        """
-        Process the transaction: update balances, handle status, and commit.
-        Returns (success, message).
+        Process the transaction through Pi Network.
+        Returns True if successful, False otherwise.
         """
         if self.status != TransactionStatus.PENDING:
-            return False, "Transaction is not in pending status"
-
+            raise ValidationError("Transaction is not in pending status")
+        
+        if self.is_expired:
+            self.status = TransactionStatus.FAILED
+            self.error_message = "Transaction expired"
+            return False
+        
         try:
-            from app.models.user import User  # Avoid circular import
-
             self.status = TransactionStatus.PROCESSING
             self.processed_at = datetime.utcnow()
-
-            if self.sender_id:
-                sender = db.session.get(User, self.sender_id)
-                if not sender or getattr(sender, "is_locked", False):
-                    raise ValueError("Sender unavailable or locked.")
-                self.balance_before_sender = getattr(sender, "pi_balance", None)
-                total_deduction = Decimal(self.amount) + (self.fee or Decimal('0.0'))
-                if getattr(sender, "pi_balance", Decimal('0.0')) < total_deduction:
-                    raise ValueError("Insufficient funds")
-                sender.pi_balance -= total_deduction
-                sender.total_pi_spent = float(getattr(sender, "total_pi_spent", 0)) + float(self.amount)
-                self.balance_after_sender = sender.pi_balance
-
-            if self.recipient_id:
-                recipient = db.session.get(User, self.recipient_id)
-                if not recipient or getattr(recipient, "is_locked", False):
-                    raise ValueError("Recipient unavailable or locked.")
-                self.balance_before_recipient = getattr(recipient, "pi_balance", None)
-                recipient.pi_balance += self.net_amount
-                recipient.total_pi_earned = float(getattr(recipient, "total_pi_earned", 0)) + float(self.net_amount)
-                self.balance_after_recipient = recipient.pi_balance
-
-            self.status = TransactionStatus.COMPLETED
-            self.completed_at = datetime.utcnow()
-            self._create_audit_log("Transaction processed successfully")
-            db.session.commit()
-            return True, "Transaction completed successfully"
+            
+            # Validate participants and balances
+            if not self._validate_transaction():
+                return False
+            
+            # Process through Pi Network (simulated)
+            success = self._process_pi_payment()
+            
+            if success:
+                self._complete_transaction()
+                return True
+            else:
+                self._fail_transaction("Pi Network payment failed")
+                return False
+                
         except Exception as e:
-            db.session.rollback()
-            self.status = TransactionStatus.FAILED
-            self.internal_notes = f"Processing failed: {repr(e)}"
-            logger.error(f"Transaction {self.id} failed: {e}")
-            self._create_audit_log(f"Transaction failed: {repr(e)}")
-            db.session.commit()
-            return False, str(e)
-
-    def cancel_transaction(self, reason: str = None) -> bool:
-        """
-        Cancel a pending or processing transaction.
-        """
-        if self.status not in {TransactionStatus.PENDING, TransactionStatus.PROCESSING}:
+            self._fail_transaction(str(e))
             return False
-        self.status = TransactionStatus.CANCELLED
-        if reason:
-            self.internal_notes = (self.internal_notes or "") + f"\nCancelled: {reason}"
-        self._create_audit_log(f"Transaction cancelled: {reason or 'No reason provided'}")
+    
+    def _validate_transaction(self) -> bool:
+        """Validate transaction before processing."""
+        # Check sender balance for outgoing transactions
+        if self.sender_id and self.transaction_type in [
+            TransactionType.TRANSFER, 
+            TransactionType.MARKETPLACE_PURCHASE,
+            TransactionType.WITHDRAWAL
+        ]:
+            if self.sender.total_rewards < self.amount:
+                self.error_message = "Insufficient balance"
+                self.status = TransactionStatus.FAILED
+                return False
+        
+        # Check receiver exists for incoming transactions
+        if self.receiver_id and not self.receiver:
+            self.error_message = "Invalid receiver"
+            self.status = TransactionStatus.FAILED
+            return False
+        
         return True
-
-    def refund_transaction(self, reason: str = None, partial_amount: Decimal = None) -> 'Transaction':
+    
+    def _process_pi_payment(self) -> bool:
         """
-        Create a refund transaction and update original transaction status.
+        Process payment through Pi Network.
+        In production, this would integrate with Pi Network SDK.
+        """
+        # Simulated Pi Network integration
+        import random
+        import time
+        
+        # Simulate network delay
+        time.sleep(0.1)
+        
+        # Simulate success rate (95% success in simulation)
+        success = random.random() > 0.05
+        
+        if success:
+            # Generate simulated blockchain data
+            self.pi_transaction_id = f"pi_txn_{uuid.uuid4().hex[:16]}"
+            self.pi_payment_id = f"pi_pay_{uuid.uuid4().hex[:16]}"
+            self.blockchain_hash = f"0x{uuid.uuid4().hex}{uuid.uuid4().hex}"
+        
+        return success
+    
+    def _complete_transaction(self) -> None:
+        """Complete transaction and update balances."""
+        self.status = TransactionStatus.COMPLETED
+        self.completed_at = datetime.utcnow()
+        
+        # Update balances
+        if self.sender_id:
+            self.sender.total_rewards -= self.amount
+        
+        if self.receiver_id:
+            self.receiver.total_rewards += self.net_amount
+    
+    def _fail_transaction(self, error_message: str) -> None:
+        """Mark transaction as failed."""
+        self.status = TransactionStatus.FAILED
+        self.error_message = error_message
+        self.retry_count += 1
+    
+    def retry(self) -> bool:
+        """Retry failed transaction."""
+        if self.status != TransactionStatus.FAILED:
+            raise ValidationError("Can only retry failed transactions")
+        
+        if self.retry_count >= 3:
+            raise ValidationError("Maximum retry attempts exceeded")
+        
+        self.status = TransactionStatus.PENDING
+        self.error_message = None
+        self.processed_at = None
+        
+        return self.process()
+    
+    def cancel(self, reason: str = None) -> None:
+        """Cancel pending transaction."""
+        if self.status not in [TransactionStatus.PENDING, TransactionStatus.PROCESSING]:
+            raise ValidationError("Cannot cancel completed or failed transaction")
+        
+        self.status = TransactionStatus.CANCELLED
+        self.error_message = reason or "Cancelled by user"
+    
+    def refund(self, reason: str = None) -> 'Transaction':
+        """
+        Create refund transaction for completed transaction.
+        Returns the refund transaction.
         """
         if self.status != TransactionStatus.COMPLETED:
-            raise ValueError("Can only refund completed transactions")
-        refund_amount = partial_amount or self.net_amount
-        if refund_amount > self.net_amount:
-            raise ValueError("Refund amount cannot exceed original transaction amount")
-        refund_transaction = Transaction(
-            sender_id=self.recipient_id,
-            recipient_id=self.sender_id,
-            amount=refund_amount,
-            net_amount=refund_amount,
+            raise ValidationError("Can only refund completed transactions")
+        
+        # Create reverse transaction
+        refund_txn = Transaction(
+            sender_id=self.receiver_id,
+            receiver_id=self.sender_id,
             transaction_type=TransactionType.REFUND,
-            description=f"Refund for transaction {self.id[:8]}",
+            amount=self.net_amount,
+            description=f"Refund for {self.reference_number}: {reason or 'No reason provided'}",
+            reference_type='transaction',
             reference_id=self.id,
-            reference_type='refund',
-            category='refund'
+            metadata={'original_transaction': self.id, 'refund_reason': reason}
         )
-        if refund_amount == self.net_amount:
-            self.status = TransactionStatus.REFUNDED
-        self._create_audit_log(f"Refund created: {refund_amount} Pi")
-        return refund_transaction
-
-    def assess_fraud_risk(self) -> float:
-        """
-        Evaluate risk using configurable rules. Sets risk_score and flags.
-        Returns a float risk score (0-100).
-        """
-        from app.models.user import User
-        risk_factors = []
-        # Pluggable risk rules for extensibility
-        if self.amount > Decimal('1000.0'):
-            risk_factors.append(('high_amount', 20))
-        if self.sender_id:
-            sender = db.session.get(User, self.sender_id)
-            if sender and (datetime.utcnow() - sender.created_at).days < 7:
-                risk_factors.append(('new_sender', 15))
-        recent_transactions = Transaction.query.filter(
-            Transaction.sender_id == self.sender_id,
-            Transaction.created_at > datetime.utcnow() - timedelta(hours=1),
-            Transaction.status == TransactionStatus.COMPLETED
-        ).count()
-        if recent_transactions > 5:
-            risk_factors.append(('high_frequency', 25))
-        total_risk = sum(score for _, score in risk_factors)
-        self.risk_score = min(total_risk, 100.0)
-        self.fraud_flags = json.dumps([flag for flag, _ in risk_factors])
-        if self.risk_score > 70:
-            self.requires_manual_review = True
-        return self.risk_score
-
-    def _create_audit_log(self, action: str) -> None:
-        """
-        Append audit log entry to internal notes with UTC timestamp.
-        """
-        timestamp = datetime.utcnow().isoformat()
-        audit_entry = f"[{timestamp}] {action}"
-        if self.internal_notes:
-            self.internal_notes += f"\n{audit_entry}"
-        else:
-            self.internal_notes = audit_entry
-
-    @hybrid_property
-    def is_reversible(self) -> bool:
-        """
-        Transaction can be reversed if completed and not a penalty/refund.
-        """
-        return (self.status == TransactionStatus.COMPLETED and
-                self.transaction_type not in {TransactionType.REFUND, TransactionType.PENALTY})
-
-    def get_metadata(self) -> dict:
-        """
-        Safely decode metadata as JSON.
-        """
-        if not self.metadata:
-            return {}
-        try:
-            return json.loads(self.metadata)
-        except (json.JSONDecodeError, TypeError):
-            return {}
-
-    def set_metadata(self, metadata_dict: dict) -> None:
-        """
-        Store dict metadata as JSON.
-        """
-        self.metadata = json.dumps(metadata_dict)
-
-    def to_dict(self, include_sensitive: bool = False) -> dict:
-        """
-        Serialize transaction for API or logging.
-        Set include_sensitive=True to include sensitive fields.
-        """
-        transaction_data = {
+        
+        # Mark original as refunded
+        self.status = TransactionStatus.REFUNDED
+        
+        db.session.add(refund_txn)
+        return refund_txn
+    
+    def to_dict(self, include_sensitive: bool = False) -> Dict[str, Any]:
+        """Convert transaction to dictionary representation."""
+        data = {
             'id': self.id,
-            'amount': str(self.amount),
-            'net_amount': str(self.net_amount),
-            'fee': str(self.fee) if self.fee else None,
+            'reference_number': self.reference_number,
             'transaction_type': self.transaction_type.value,
+            'amount': float(self.amount),
+            'currency': self.currency,
+            'net_amount': float(self.net_amount),
+            'total_fee': float(self.total_fee),
             'status': self.status.value,
             'description': self.description,
-            'reference_id': self.reference_id,
-            'reference_type': self.reference_type,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None
+            'created_at': self.created_at.isoformat(),
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'processing_time': str(self.processing_time) if self.processing_time else None
         }
+        
+        # Add participant information
+        if self.sender:
+            data['sender'] = {
+                'id': self.sender.id,
+                'username': self.sender.username,
+                'display_name': self.sender.display_name or self.sender.username
+            }
+        
+        if self.receiver:
+            data['receiver'] = {
+                'id': self.receiver.id,
+                'username': self.receiver.username,
+                'display_name': self.receiver.display_name or self.receiver.username
+            }
+        
         if include_sensitive:
-            transaction_data.update({
-                'transaction_hash': self.transaction_hash,
-                'sender_id': self.sender_id,
-                'recipient_id': self.recipient_id,
-                'risk_score': self.risk_score,
-                'requires_manual_review': self.requires_manual_review,
-                'internal_notes': self.internal_notes,
-                'metadata': self.get_metadata()
+            data.update({
+                'pi_transaction_id': self.pi_transaction_id,
+                'blockchain_hash': self.blockchain_hash,
+                'error_message': self.error_message,
+                'retry_count': self.retry_count,
+                'metadata': self.metadata
             })
-        return transaction_data
+        
+        return data
+    
+    @classmethod
+    def create_transfer(cls, sender, receiver, amount: Decimal, description: str = None) -> 'Transaction':
+        """Create a transfer transaction between users."""
+        if sender.id == receiver.id:
+            raise ValidationError("Cannot transfer to yourself")
+        
+        if sender.total_rewards < amount:
+            raise InsufficientFundsError("Insufficient balance for transfer")
+        
+        transaction = cls(
+            sender_id=sender.id,
+            receiver_id=receiver.id,
+            transaction_type=TransactionType.TRANSFER,
+            amount=amount,
+            description=description or f"Transfer from {sender.username} to {receiver.username}"
+        )
+        
+        transaction.calculate_fees()
+        return transaction
+    
+    @classmethod
+    def create_quest_reward(cls, user, amount: Decimal, quest_id: str, description: str = None) -> 'Transaction':
+        """Create a quest reward transaction."""
+        transaction = cls(
+            receiver_id=user.id,
+            transaction_type=TransactionType.QUEST_REWARD,
+            amount=amount,
+            description=description or f"Quest reward for {user.username}",
+            reference_type='quest',
+            reference_id=quest_id
+        )
+        
+        transaction.calculate_fees()
+        return transaction
+    
+    def __repr__(self) -> str:
+        return f"<Transaction {self.reference_number} ({self.status.value})>"
 
-@event.listens_for(Transaction, 'after_insert')
-def auto_process_safe_transactions(mapper, connection, target):
-    """
-    Automatically process low-risk transactions (production: enqueue to worker).
-    """
-    if target.assess_fraud_risk() < 30 and not target.requires_manual_review:
-        # TODO: In production, enqueue a background task or process immediately.
-        pass
+
+# Event listeners
+@event.listens_for(Transaction, 'before_insert')
+def set_transaction_defaults(mapper, connection, target):
+    """Set default values before insert."""
+    target.calculate_fees()
+
+
+@event.listens_for(Transaction.status, 'set')
+def handle_status_change(target, value, old_value, initiator):
+    """Handle transaction status changes."""
+    if value == TransactionStatus.COMPLETED and not target.completed_at:
+        target.completed_at = datetime.utcnow()
+    elif value == TransactionStatus.PROCESSING and not target.processed_at:
+        target.processed_at = datetime.utcnow()
+
+
+# Periodic cleanup task (would be run by scheduler)
+def cleanup_expired_transactions():
+    """Mark expired pending transactions as failed."""
+    expired_transactions = Transaction.query.filter(
+        Transaction.status == TransactionStatus.PENDING,
+        Transaction.expires_at <= datetime.utcnow()
+    ).all()
+    
+    for txn in expired_transactions:
+        txn.status = TransactionStatus.FAILED
+        txn.error_message = "Transaction expired"
+    
+    db.session.commit()
+    return len(expired_transactions)
