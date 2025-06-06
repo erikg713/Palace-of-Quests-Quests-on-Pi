@@ -62,6 +62,49 @@ backend/
 │── Dockerfile             # Containerized deployment
 │── requirements.txt       # Flask dependencies
 │── package.json           # Node.js dependencies
+
+palace-of-quests/
+├── backend/
+│   ├── app/
+│   │   ├── __init__.py                 # Initializes Flask app and extensions
+│   │   ├── config.py                   # Configuration settings (e.g., database URI)
+│   │   ├── extensions.py               # Defines Flask extensions (e.g., SQLAlchemy, JWT)
+│   │   ├── models/                     # Database models
+│   │   │   ├── __init__.py             # Imports all models
+│   │   │   ├── user.py                 # User model with enhancements
+│   │   │   ├── quest.py                # Quest model
+│   │   │   ├── quest_progress.py       # QuestProgress model
+│   │   │   ├── user_quest.py           # UserQuest model
+│   │   │   ├── item.py                 # Item model for marketplace
+│   │   │   └── transaction.py          # Transaction model
+│   │   ├── api/                        # API blueprints for endpoints
+│   │   │   ├── __init__.py
+│   │   │   ├── auth.py                 # Authentication endpoints (register, login)
+│   │   │   ├── users.py                # User-related endpoints
+│   │   │   ├── quests.py               # Quest-related endpoints
+│   │   │   ├── marketplace.py          # Marketplace endpoints
+│   │   │   └── transactions.py         # Transaction endpoints
+│   │   ├── utils/                      # Utility functions
+│   │   │   ├── __init__.py
+│   │   │   ├── validation.py           # Input validation helpers
+│   │   │   ├── serialization.py        # Serialization for API responses
+│   │   │   └── errors.py               # Custom error handlers
+│   │   └── templates/                  # Optional: Templates for emails or admin UI
+│   ├── migrations/                     # Database migrations (via Flask-Migrate)
+│   │   ├── env.py
+│   │   └── versions/
+│   ├── tests/                         # Unit and integration tests
+│   │   ├── __init__.py
+│   │   ├── test_auth.py
+│   │   ├── test_users.py
+│   │   ├── test_quests.py
+│   │   ├── test_marketplace.py
+│   │   └── test_transactions.py
+│   ├── .env                           # Environment variables (e.g., SECRET_KEY)
+│   ├── requirements.txt               # Python dependencies
+│   ├── run.py                         # Entry point to run the Flask app
+│   ├── Dockerfile                     # Docker configuration (optional)
+│   └── docker-compose.yml             # Docker Compose for local development (optional)
 ```
 
 ## 🚀 API Endpoints Breakdown
