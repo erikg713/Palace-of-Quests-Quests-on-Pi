@@ -31,3 +31,13 @@ def pi_login_required(f):
         g.pi_user = user_info  # Save user info for use in the route
         return f(*args, **kwargs)
     return decorated_function
+import os
+
+# Get PI App access token from environment variable for security.
+# Ensure to set 'PI_APP_ACCESS_TOKEN' in your deployment environment.
+APP_ACCESS_TOKEN = os.getenv("PI_APP_ACCESS_TOKEN")
+if not APP_ACCESS_TOKEN:
+    raise RuntimeError(
+        "PI_APP_ACCESS_TOKEN environment variable is not set. "
+        "Set this variable in your environment configuration."
+    )
