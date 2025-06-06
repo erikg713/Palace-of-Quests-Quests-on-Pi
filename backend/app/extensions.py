@@ -1,7 +1,6 @@
 """
-Flask extension initializations and JWT configuration for Palace of Quests backend.
-
-This module centralizes extension objects for import throughout the app.
+Centralized initialization and configuration of Flask extensions for Palace of Quests backend.
+Ensures all extensions are imported from a single source for maintainability.
 """
 
 from flask_sqlalchemy import SQLAlchemy
@@ -12,94 +11,59 @@ from flask_caching import Cache
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_socketio import SocketIO
+from flask_marshmallow import Marshmallow
 
 from app.services.pi_network import PiNetworkService
 
 # --- Extension Instances ---
-db = SQLAlchemy()
-migrate = Migrate()
-jwt = JWTManager()
-bcrypt = Bcrypt()
-cache = Cache()
-limiter = Limiter(key_func=get_remote_address)
-pi_network = PiNetworkService()
-websocket = SocketIO(cors_allowed_origins="*", async_mode="threading")
+db: SQLAlchemy = SQLAlchemy()
+migrate: Migrate = Migrate()
+jwt: JWTManager = JWTManager()
+bcrypt: Bcrypt = Bcrypt()
+cache: Cache = Cache()
+limiter: Limiter = Limiter(key_func=get_remote_address)
+websocket: SocketIO = SocketIO(cors_allowed_origins="*", async_mode="threading")
+ma: Marshmallow = Marshmallow()
+pi_network: PiNetworkService = PiNetworkService()
 
-# --- JWT Error Handlers & Callbacks ---
+# --- JWT Error Response Utility ---
+def _jwt_error_response(message: str, error_code: str, status_code: int = 401):
+    """Utility for consistent JWT error responses."""
+    return {"message": message, "error": error_code}, status_code
 
-# Consider moving error messages to a constants module if reused elsewhere.
-_JWT_ERROR_RESPONSES = {
-    "expired":   ({"message": "Token has expired", "error": "token_expired"}, 401),
-    "invalid":   ({"message": "Invalid token", "error": "invalid_token"}, 401),
-    "required":  ({"message": "Authentication token required", "error": "auth_required"}, 401),
-}
-
-
-@jwt.token_in_blocklist_loader
-def check_if_token_revoked(jwt_header, jwt_payload):
-    """
-    Checks if a JWT token's jti is blacklisted.
-    Prevents usage of revoked tokens.
-    """
-    from app.models.auth import RevokedToken
-    jti = jwt_payload.get('jti')
-    if not jti:
-        return True
-    return RevokedToken.is_jti_blacklisted(jti)
-
-
-@jwt.expired_token_loader
-def expired_token_callback(jwt_header, jwt_payload):
-    """Handles expired JWT tokens."""
-    return _JWT_ERROR_RESPONSES["expired"]
-
-
-@jwt.invalid_token_loader
-def invalid_token_callback(error):
-    """Handles invalid JWT tokens."""
-    return _JWT_ERROR_RESPONSES["invalid"]
-
-
-@jwt.unauthorized_loader
-def missing_token_callback(error):
-    """Handles missing JWT tokens."""
-    return _JWT_ERROR_RESPONSES["required"]
-"""
-Flask Extensions Configuration
-Centralized extension initialization for better dependency management.
-"""
-
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
-from flask_jwt_extended import JWTManager
-from flask_bcrypt import Bcrypt
-from flask_caching import Cache
-from flask_marshmallow import Marshmallow
-
-# Initialize extensions
-db = SQLAlchemy()
-migrate = Migrate()
-jwt = JWTManager()
-bcrypt = Bcrypt()
-cache = Cache()
-ma = Marshmallow()
-
-# Custom configurations
+# --- JWT Configuration ---
 def configure_jwt(app):
-    """Configure JWT settings and callbacks."""
-    
+    """
+    Attach JWT error handlers and revoke logic.
+    Should be called in your app factory after initializing extensions.
+    """
+    @jwt.token_in_blocklist_loader
+    def check_if_token_revoked(jwt_header, jwt_payload) -> bool:
+        """Check if a JWT's jti is blacklisted."""
+        from app.models.auth import RevokedToken
+        jti = jwt_payload.get("jti")
+        return not jti or RevokedToken.is_jti_blacklisted(jti)
+
     @jwt.expired_token_loader
     def expired_token_callback(jwt_header, jwt_payload):
-        return {'message': 'Token has expired', 'error': 'token_expired'}, 401
-    
+        return _jwt_error_response("Token has expired", "token_expired")
+
     @jwt.invalid_token_loader
     def invalid_token_callback(error):
-        return {'message': 'Invalid token', 'error': 'invalid_token'}, 401
-    
+        return _jwt_error_response("Invalid token", "invalid_token")
+
     @jwt.unauthorized_loader
     def missing_token_callback(error):
-        return {'message': 'Authorization token required', 'error': 'authorization_required'}, 401
-    
+        return _jwt_error_response("Authentication token required", "auth_required")
+
     @jwt.revoked_token_loader
     def revoked_token_callback(jwt_header, jwt_payload):
-        return {'message': 'Token has been revoked', 'error': 'token_revoked'}, 401
+        return _jwt_error_response("Token has been revoked", "token_revoked")
+
+# Usage (in your app factory):
+# from .extensions import db, migrate, jwt, configure_jwt, ...
+# db.init_app(app)
+# migrate.init_app(app, db)
+# jwt.init_app(app)
+# configure_jwt(app)
+# ...
