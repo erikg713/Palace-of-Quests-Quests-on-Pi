@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime
-from models import UserQuest, Quest, db
+from models import UserQuest, db
 from sqlalchemy.exc import SQLAlchemyError
 from enum import Enum
 
@@ -13,44 +13,56 @@ class UserQuestStatus(Enum):
     COMPLETED = 'completed'
 
 class UserQuestError(Exception):
-    def __init__(self, message, status_code):
+    def __init__(self, message, status_code=400):
         super().__init__(message)
         self.message = message
         self.status_code = status_code
 
 def handle_error(error):
-    response = jsonify({'error': error.message})
-    response.status_code = error.status_code
-    return response
+    return jsonify({'error': error.message}), error.status_code
 
 def update_user_quest_in_db(user_quest_id, progress):
     user_quest = UserQuest.query.get(user_quest_id)
-    if not user_quest:
+    if user_quest is None:
         raise UserQuestError('User quest not found', 404)
-    
-    user_quest.progress = progress
-    if progress >= PROGRESS_COMPLETE_THRESHOLD:
+
+    # Only update if progress changes
+    updated = False
+    if user_quest.progress != progress:
+        user_quest.progress = progress
+        updated = True
+
+    if progress >= PROGRESS_COMPLETE_THRESHOLD and user_quest.status != UserQuestStatus.COMPLETED.value:
         user_quest.status = UserQuestStatus.COMPLETED.value
         user_quest.completed_at = datetime.utcnow()
-    
-    db.session.commit()
+        updated = True
+
+    if updated:
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise UserQuestError('Database error occurred', 500)
     return user_quest
 
 @user_quests_bp.route('/update', methods=['POST'])
 def update_user_quest():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     user_quest_id = data.get('user_quest_id')
     progress = data.get('progress')
-    
+
     if not user_quest_id or progress is None:
-        return handle_error(UserQuestError('Missing required fields: user_quest_id and progress', 400))
-    
+        return handle_error(UserQuestError('Missing required fields: user_quest_id and progress'))
+
     try:
         user_quest = update_user_quest_in_db(user_quest_id, progress)
     except UserQuestError as e:
         return handle_error(e)
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        return handle_error(UserQuestError('Database error occurred', 500))
 
-    return jsonify({'message': 'User quest progress updated', 'user_quest_id': user_quest.id}), 200
+    return jsonify({
+        'message': 'User quest progress updated',
+        'user_quest_id': user_quest.id,
+        'progress': user_quest.progress,
+        'status': user_quest.status,
+        'completed_at': user_quest.completed_at.isoformat() if user_quest.completed_at else None
+    }), 200
