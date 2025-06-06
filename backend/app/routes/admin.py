@@ -1,81 +1,111 @@
 from flask import Blueprint, request, jsonify
-from models import Quest, db
 from datetime import datetime
+from sqlalchemy.exc import SQLAlchemyError
+
+from models import Quest, db
 from middleware.roles import requires_role
 
+import logging
+
 admin_bp = Blueprint('admin', __name__)
+logger = logging.getLogger(__name__)
 
-def validate_request(data, required_fields):
-    """Helper function to validate request payload"""
-    missing_fields = [field for field in required_fields if not data.get(field)]
-    if missing_fields:
-        return {"error": f"Missing required fields: {', '.join(missing_fields)}"}, 400
-    return None
+# Helpers
+def get_json_field(data, field, required=True):
+    value = data.get(field)
+    if required and value is None:
+        raise ValueError(f"Missing required field: {field}")
+    return value
 
+def get_quest_or_404(quest_id):
+    quest = Quest.query.get(quest_id)
+    if not quest:
+        return None, jsonify({"error": "Quest not found"}), 404
+    return quest, None, None
+
+# Routes
 @admin_bp.route('/quest/create', methods=['POST'])
 @requires_role('admin')
 def create_quest():
-    data = request.get_json()
-    validation_error = validate_request(data, ['title', 'description', 'reward', 'level_required'])
-    if validation_error:
-        return jsonify(validation_error[0]), validation_error[1]
-
+    """
+    Create a new quest.
+    Expects JSON with: title, description, reward, level_required.
+    """
     try:
+        data = request.get_json()
+        title = get_json_field(data, 'title')
+        description = get_json_field(data, 'description')
+        reward = get_json_field(data, 'reward')
+        level_required = get_json_field(data, 'level_required')
+
         new_quest = Quest(
-            title=data['title'],
-            description=data['description'],
-            reward=data['reward'],
-            level_required=data['level_required'],
+            title=title,
+            description=description,
+            reward=reward,
+            level_required=level_required,
             created_at=datetime.utcnow()
         )
         db.session.add(new_quest)
         db.session.commit()
+        logger.info(f"Quest created: {new_quest.id}")
         return jsonify({"message": "Quest created successfully", "quest_id": new_quest.id}), 201
-    except Exception as e:
+    except ValueError as ve:
+        logger.warning(f"Validation error: {ve}")
+        return jsonify({"error": str(ve)}), 400
+    except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"error": "Failed to create quest", "details": str(e)}), 500
+        logger.error(f"DB error on create: {e}")
+        return jsonify({"error": "Database error occurred"}), 500
 
 @admin_bp.route('/quest/update', methods=['PUT'])
 @requires_role('admin')
 def update_quest():
-    data = request.get_json()
-    validation_error = validate_request(data, ['quest_id'])
-    if validation_error:
-        return jsonify(validation_error[0]), validation_error[1]
-
+    """
+    Update a quest. quest_id is required, other fields optional.
+    """
     try:
-        quest = Quest.query.get(data['quest_id'])
+        data = request.get_json()
+        quest_id = get_json_field(data, 'quest_id')
+        quest, error_resp, status = get_quest_or_404(quest_id)
         if not quest:
-            return jsonify({"error": "Quest not found"}), 404
+            return error_resp, status
 
-        # Update fields if provided
-        quest.title = data.get('title', quest.title)
-        quest.description = data.get('description', quest.description)
-        quest.reward = data.get('reward', quest.reward)
-        quest.level_required = data.get('level_required', quest.level_required)
+        # Only update provided fields
+        for field in ['title', 'description', 'reward', 'level_required']:
+            if field in data:
+                setattr(quest, field, data[field])
         db.session.commit()
-
+        logger.info(f"Quest updated: {quest.id}")
         return jsonify({"message": "Quest updated successfully", "quest_id": quest.id}), 200
-    except Exception as e:
+    except ValueError as ve:
+        logger.warning(f"Validation error: {ve}")
+        return jsonify({"error": str(ve)}), 400
+    except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"error": "Failed to update quest", "details": str(e)}), 500
+        logger.error(f"DB error on update: {e}")
+        return jsonify({"error": "Database error occurred"}), 500
 
 @admin_bp.route('/quest/delete', methods=['DELETE'])
 @requires_role('admin')
 def delete_quest():
-    data = request.get_json()
-    validation_error = validate_request(data, ['quest_id'])
-    if validation_error:
-        return jsonify(validation_error[0]), validation_error[1]
-
+    """
+    Delete a quest by quest_id.
+    """
     try:
-        quest = Quest.query.get(data['quest_id'])
+        data = request.get_json()
+        quest_id = get_json_field(data, 'quest_id')
+        quest, error_resp, status = get_quest_or_404(quest_id)
         if not quest:
-            return jsonify({"error": "Quest not found"}), 404
+            return error_resp, status
 
         db.session.delete(quest)
         db.session.commit()
-        return jsonify({"message": "Quest deleted successfully", "quest_id": data['quest_id']}), 200
-    except Exception as e:
+        logger.info(f"Quest deleted: {quest_id}")
+        return jsonify({"message": "Quest deleted successfully", "quest_id": quest_id}), 200
+    except ValueError as ve:
+        logger.warning(f"Validation error: {ve}")
+        return jsonify({"error": str(ve)}), 400
+    except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"error": "Failed to delete quest", "details": str(e)}), 500
+        logger.error(f"DB error on delete: {e}")
+        return jsonify({"error": "Database error occurred"}), 500
