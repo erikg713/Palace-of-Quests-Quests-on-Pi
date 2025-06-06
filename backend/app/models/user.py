@@ -1,334 +1,278 @@
-import base64
-import json
-import math
-import secrets
-from datetime import datetime, timedelta
-from io import BytesIO
+"""
+User Model with Enhanced Security and Game Mechanics
+Professional implementation with proper validation and business logic.
+"""
 
-import pyotp
-import qrcode
-from flask import current_app
-from flask_login import UserMixin
+import uuid
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Any
 from sqlalchemy import event
 from sqlalchemy.ext.hybrid import hybrid_property
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_bcrypt import Bcrypt
-from app import db
-import uuid
-from datetime import datetime
 
-bcrypt = Bcrypt()
+from app.extensions import db
+from app.core.exceptions import ValidationError
+from app.utils.validators import validate_email, validate_username
+
 
 class User(db.Model):
+    """
+    User model with comprehensive game mechanics and security features.
+    Implements level progression, achievement tracking, and secure authentication.
+    """
+    
     __tablename__ = 'users'
+    
+    # Primary identification
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    username = db.Column(db.String(50), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(200), nullable=False)  # Renamed to password_hash
-    role = db.Column(db.String(20), default='user')  # 'user' or 'admin'
-    level = db.Column(db.Integer, default=1)
-    xp = db.Column(db.Float, default=0.0)
-    rewards = db.Column(db.Float, default=0.0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    def set_password(self, password):
-        self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
-
-    def check_password(self, password):
-        return bcrypt.check_password_hash(self.password_hash, password)
-
-    def add_xp(self, xp_gained):
-        self.xp += xp_gained
-        while self.xp >= 100:  # Level up when XP reaches 100
-            self.level += 1
-            self.xp -= 100
-
-    def __repr__(self):
-        return f"<User {self.username}>"
-from app import db
-
-class User(UserMixin, db.Model):
-    """User model for Palace of Quests – handles authentication, progression, and economy."""
-
-    __tablename__ = 'users'
-
-    # Identification
-    id = db.Column(db.String(36), primary_key=True, default=lambda: secrets.token_urlsafe(24))
-    username = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
-
-    # Authentication & Security
+    username = db.Column(db.String(30), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
-    email_verified = db.Column(db.Boolean, default=False)
-    email_verification_token = db.Column(db.String(100), unique=True)
-    email_verification_expires = db.Column(db.DateTime)
-    two_factor_enabled = db.Column(db.Boolean, default=False)
-    two_factor_secret = db.Column(db.String(64))
-    backup_codes = db.Column(db.Text)  # Comma-separated, consider encryption for production
-    is_active = db.Column(db.Boolean, default=True, index=True)
-    is_locked = db.Column(db.Boolean, default=False)
-    lock_reason = db.Column(db.String(255))
-    locked_until = db.Column(db.DateTime)
-    failed_login_attempts = db.Column(db.Integer, default=0)
-    last_failed_login = db.Column(db.DateTime)
-
-    # Login tracking
-    last_login = db.Column(db.DateTime)
-    login_count = db.Column(db.Integer, default=0)
-    last_ip_address = db.Column(db.String(45))  # IPv4/IPv6
-    registration_ip = db.Column(db.String(45))
-
+    
+    # Pi Network integration
+    pi_user_id = db.Column(db.String(100), unique=True, nullable=True, index=True)
+    pi_username = db.Column(db.String(50), nullable=True)
+    
+    # Profile information
+    display_name = db.Column(db.String(50), nullable=True)
+    bio = db.Column(db.Text, nullable=True)
+    avatar_url = db.Column(db.String(500), nullable=True)
+    
     # Game progression
-    level = db.Column(db.Integer, default=1, index=True)
-    experience_points = db.Column(db.BigInteger, default=0)
-    total_quests_completed = db.Column(db.Integer, default=0)
-    achievement_points = db.Column(db.Integer, default=0)
-
-    # Economy and rewards
-    pi_balance = db.Column(db.Numeric(18, 8), default=0)
-    total_pi_earned = db.Column(db.Numeric(18, 8), default=0)
-    total_pi_spent = db.Column(db.Numeric(18, 8), default=0)
-
-    # Profile and personalization
-    display_name = db.Column(db.String(100))
-    bio = db.Column(db.Text)
-    avatar_url = db.Column(db.String(255))
-    timezone = db.Column(db.String(50), default='UTC')
-    preferred_language = db.Column(db.String(10), default='en')
-
-    # Privacy and preferences
-    profile_visibility = db.Column(db.String(20), default='public')
-    allow_friend_requests = db.Column(db.Boolean, default=True)
-    email_notifications = db.Column(db.Boolean, default=True)
-    push_notifications = db.Column(db.Boolean, default=True)
-
-    # Premium features
-    is_premium = db.Column(db.Boolean, default=False)
-    premium_expires = db.Column(db.DateTime)
-    subscription_type = db.Column(db.String(20))
-
-    # Administrative
-    role = db.Column(db.String(20), default='player', index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    level = db.Column(db.Integer, default=1, nullable=False)
+    experience_points = db.Column(db.BigInteger, default=0, nullable=False)
+    total_rewards = db.Column(db.Numeric(precision=20, scale=8), default=0, nullable=False)
+    
+    # Account status and security
+    role = db.Column(db.String(20), default='player', nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    is_verified = db.Column(db.Boolean, default=False, nullable=False)
+    email_verified_at = db.Column(db.DateTime, nullable=True)
+    last_login_at = db.Column(db.DateTime, nullable=True)
+    failed_login_attempts = db.Column(db.Integer, default=0, nullable=False)
+    locked_until = db.Column(db.DateTime, nullable=True)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Soft deletion
-    deleted_at = db.Column(db.DateTime)
-    deletion_reason = db.Column(db.String(255))
-
+    
     # Relationships
-    user_quests = db.relationship('UserQuest', backref='user', lazy='dynamic', cascade='all, delete-orphan')
+    quest_progress = db.relationship('QuestProgress', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     transactions_sent = db.relationship('Transaction', foreign_keys='Transaction.sender_id', backref='sender', lazy='dynamic')
-    transactions_received = db.relationship('Transaction', foreign_keys='Transaction.recipient_id', backref='recipient', lazy='dynamic')
-    marketplace_items = db.relationship('MarketplaceItem', backref='owner', lazy='dynamic')
-    achievements = db.relationship('UserAchievement', backref='user', lazy='dynamic')
-
-    def __repr__(self):
-        return f"<User {self.username}>"
-
-    # Password management
-    def set_password(self, password: str) -> None:
-        """Hash and set the user's password."""
-        self.password_hash = generate_password_hash(
-            password,
-            method='pbkdf2:sha256:200000'
-        )
-
-    def verify_password(self, password: str) -> bool:
-        """Check a plaintext password against the stored hash."""
-        return self.password_hash and check_password_hash(self.password_hash, password)
-
-    # Two-factor authentication
-    def enable_two_factor(self) -> str:
-        """Enable 2FA and generate a QR code. Returns base64-encoded PNG."""
-        if not self.two_factor_secret:
-            self.two_factor_secret = pyotp.random_base32()
-
-        # Generate backup codes
-        codes = [secrets.token_hex(4) for _ in range(10)]
-        self.backup_codes = ','.join(codes)
-
-        totp_uri = pyotp.totp.TOTP(self.two_factor_secret).provisioning_uri(
-            name=self.email,
-            issuer_name=current_app.config.get('APP_NAME', 'Palace of Quests')
-        )
-
-        qr = qrcode.QRCode(version=1, box_size=10, border=5)
-        qr.add_data(totp_uri)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
-        buffer = BytesIO()
-        img.save(buffer, format='PNG')
-        buffer.seek(0)
-        return base64.b64encode(buffer.getvalue()).decode()
-
-    def verify_totp(self, token: str) -> bool:
-        """Verify a TOTP token or backup code."""
-        if not self.two_factor_secret:
-            return False
-        totp = pyotp.TOTP(self.two_factor_secret)
-        if totp.verify(token, valid_window=1):
-            return True
-        if self.backup_codes:
-            codes = self.backup_codes.split(',')
-            if token in codes:
-                codes.remove(token)
-                self.backup_codes = ','.join(codes)
-                return True
-        return False
-
-    # Game progression
-    def add_experience(self, xp_amount: int) -> dict:
-        """Add experience and handle level-ups. Returns a summary dict."""
-        old_level = self.level
-        self.experience_points += xp_amount
-        new_level = self.calculate_level_from_xp(self.experience_points)
-        level_up_rewards = []
-        if new_level > old_level:
-            self.level = new_level
-            level_up_rewards = self.process_level_up(old_level, new_level)
-        return {
-            'xp_gained': xp_amount,
-            'total_xp': self.experience_points,
-            'old_level': old_level,
-            'new_level': self.level,
-            'level_up_rewards': level_up_rewards
-        }
-
-    @staticmethod
-    def calculate_level_from_xp(xp: int) -> int:
-        """Calculate level using a smooth progression curve."""
-        if xp < 100:
-            return 1
-        return min(250, int(math.log(xp / 100) / math.log(1.5)) + 1)
-
-    def process_level_up(self, old_level: int, new_level: int) -> list:
-        """Handle rewards/unlocks for each level-up."""
-        rewards = []
-        for level in range(old_level + 1, new_level + 1):
-            pi_reward = level * 0.1
-            self.pi_balance += pi_reward
-            rewards.append({'type': 'pi', 'amount': float(pi_reward)})
-            if level % 10 == 0:
-                achievement = level * 5
-                self.achievement_points += achievement
-                rewards.append({'type': 'achievement_points', 'amount': achievement})
-            # Feature unlocks
-            if level == 5:
-                rewards.append({'type': 'feature_unlock', 'feature': 'marketplace'})
-            elif level == 10:
-                rewards.append({'type': 'feature_unlock', 'feature': 'guild_system'})
-            elif level == 25:
-                rewards.append({'type': 'feature_unlock', 'feature': 'advanced_quests'})
-        return rewards
-
-    # Economic methods
-    def can_afford(self, amount: float) -> bool:
-        """Check if user has enough Pi."""
-        try:
-            return float(self.pi_balance) >= amount
-        except Exception:
-            return False
-
-    def deduct_pi(self, amount: float, reason: str = None) -> bool:
-        """Deduct Pi if possible; returns True if successful."""
-        if not self.can_afford(amount):
-            return False
-        self.pi_balance -= amount
-        self.total_pi_spent += amount
-        # Optionally log deduction reason here
-        return True
-
-    def add_pi(self, amount: float, reason: str = None) -> None:
-        """Add Pi to user."""
-        self.pi_balance += amount
-        self.total_pi_earned += amount
-        # Optionally log addition reason here
-
-    # Premium subscription
-    @hybrid_property
-    def is_premium_active(self) -> bool:
-        """True if user currently has premium."""
-        return bool(self.is_premium and self.premium_expires and self.premium_expires > datetime.utcnow())
-
-    # Quest utilities
-    def has_active_quests(self) -> bool:
-        """Check for any in-progress quests."""
-        return self.user_quests.filter_by(status='in_progress').count() > 0
-
+    transactions_received = db.relationship('Transaction', foreign_keys='Transaction.receiver_id', backref='receiver', lazy='dynamic')
+    marketplace_items = db.relationship('Item', backref='seller', lazy='dynamic')
+    notifications = db.relationship('Notification', backref='user', lazy='dynamic', cascade='all, delete-orphan')
+    
+    # Constraints
+    __table_args__ = (
+        db.CheckConstraint('level >= 1', name='valid_level'),
+        db.CheckConstraint('experience_points >= 0', name='valid_experience'),
+        db.CheckConstraint('total_rewards >= 0', name='valid_rewards'),
+        db.CheckConstraint('failed_login_attempts >= 0', name='valid_failed_attempts'),
+        db.Index('idx_user_level_xp', 'level', 'experience_points'),
+        db.Index('idx_user_pi_integration', 'pi_user_id', 'pi_username'),
+    )
+    
+    def __init__(self, **kwargs):
+        """Initialize user with validation."""
+        if 'username' in kwargs:
+            if not validate_username(kwargs['username']):
+                raise ValidationError("Invalid username format")
+        
+        if 'email' in kwargs:
+            if not validate_email(kwargs['email']):
+                raise ValidationError("Invalid email format")
+        
+        super().__init__(**kwargs)
+    
     @property
     def is_admin(self) -> bool:
-        """True if user is admin or super_admin."""
-        return self.role in ('admin', 'super_admin')
-
+        """Check if user has admin privileges."""
+        return self.role in ['admin', 'super_admin']
+    
     @property
-    def is_moderator(self) -> bool:
-        """True if user is moderator or above."""
-        return self.role in ('moderator', 'admin', 'super_admin')
-
-    def initialize_profile(self) -> None:
-        """Initialize new user profile with defaults and tutorial quest."""
-        self.display_name = self.username.title()
-        self.created_at = datetime.utcnow()
-        # Assign tutorial quest if available
-        from app.models.quest import Quest
-        tutorial_quest = Quest.query.filter_by(quest_type='tutorial').first()
-        if tutorial_quest:
-            self.start_quest(tutorial_quest.id)
-
-    def start_quest(self, quest_id: int) -> bool:
-        """Start a quest for the user if eligible."""
-        from app.models.user_quest import UserQuest
-        from app.models.quest import Quest
-
-        quest = Quest.query.get(quest_id)
-        if not quest or self.level < getattr(quest, 'minimum_level', 1):
+    def is_locked(self) -> bool:
+        """Check if account is temporarily locked."""
+        return (self.locked_until and 
+                self.locked_until > datetime.utcnow())
+    
+    @hybrid_property
+    def experience_to_next_level(self) -> int:
+        """Calculate XP needed for next level."""
+        return self._calculate_xp_for_level(self.level + 1) - self.experience_points
+    
+    @hybrid_property
+    def level_progress_percentage(self) -> float:
+        """Calculate percentage progress to next level."""
+        current_level_xp = self._calculate_xp_for_level(self.level)
+        next_level_xp = self._calculate_xp_for_level(self.level + 1)
+        level_xp_range = next_level_xp - current_level_xp
+        current_progress = self.experience_points - current_level_xp
+        return min(100.0, (current_progress / level_xp_range) * 100)
+    
+    def set_password(self, password: str) -> None:
+        """Set user password with proper hashing."""
+        if len(password) < 8:
+            raise ValidationError("Password must be at least 8 characters long")
+        
+        self.password_hash = generate_password_hash(password, method='pbkdf2:sha256', salt_length=16)
+    
+    def verify_password(self, password: str) -> bool:
+        """Verify password against stored hash."""
+        if not self.password_hash:
             return False
-
-        exists = UserQuest.query.filter_by(
-            user_id=self.id,
-            quest_id=quest_id,
-            status='in_progress'
-        ).first()
-        if exists:
-            return False
-
-        user_quest = UserQuest(
-            user_id=self.id,
-            quest_id=quest_id,
-            status='in_progress',
-            started_at=datetime.utcnow()
-        )
-        db.session.add(user_quest)
-        return True
-
-    def to_dict(self, include_private: bool = False) -> dict:
-        """Serialize user for API output."""
+        return check_password_hash(self.password_hash, password)
+    
+    def add_experience(self, xp_amount: int, source: str = None) -> Dict[str, Any]:
+        """
+        Add experience points and handle level progression.
+        
+        Args:
+            xp_amount: Amount of XP to add
+            source: Source of XP gain for tracking
+            
+        Returns:
+            Dictionary with level up information
+        """
+        if xp_amount <= 0:
+            raise ValidationError("Experience amount must be positive")
+        
+        old_level = self.level
+        self.experience_points += xp_amount
+        
+        # Check for level ups
+        new_level = self._calculate_level_from_xp(self.experience_points)
+        levels_gained = max(0, new_level - self.level)
+        
+        if levels_gained > 0:
+            self.level = new_level
+            # Award level-up rewards
+            level_rewards = self._calculate_level_rewards(old_level, new_level)
+            self.total_rewards += level_rewards
+            
+            return {
+                'xp_gained': xp_amount,
+                'levels_gained': levels_gained,
+                'new_level': new_level,
+                'level_rewards': float(level_rewards),
+                'leveled_up': True
+            }
+        
+        return {
+            'xp_gained': xp_amount,
+            'levels_gained': 0,
+            'new_level': self.level,
+            'level_rewards': 0,
+            'leveled_up': False
+        }
+    
+    def record_login_attempt(self, successful: bool, ip_address: str = None) -> None:
+        """Record login attempt and handle account locking."""
+        if successful:
+            self.last_login_at = datetime.utcnow()
+            self.failed_login_attempts = 0
+            self.locked_until = None
+        else:
+            self.failed_login_attempts += 1
+            
+            # Lock account after 5 failed attempts
+            if self.failed_login_attempts >= 5:
+                self.locked_until = datetime.utcnow() + timedelta(minutes=30)
+    
+    def unlock_account(self) -> None:
+        """Manually unlock user account."""
+        self.failed_login_attempts = 0
+        self.locked_until = None
+    
+    def verify_email(self) -> None:
+        """Mark email as verified."""
+        self.is_verified = True
+        self.email_verified_at = datetime.utcnow()
+    
+    def deactivate(self) -> None:
+        """Deactivate user account."""
+        self.is_active = False
+        self.updated_at = datetime.utcnow()
+    
+    def activate(self) -> None:
+        """Activate user account."""
+        self.is_active = True
+        self.updated_at = datetime.utcnow()
+    
+    def to_dict(self, include_sensitive: bool = False) -> Dict[str, Any]:
+        """Convert user to dictionary representation."""
         data = {
             'id': self.id,
             'username': self.username,
-            'display_name': self.display_name,
+            'display_name': self.display_name or self.username,
             'level': self.level,
-            'achievement_points': self.achievement_points,
-            'total_quests_completed': self.total_quests_completed,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'experience_points': self.experience_points,
+            'experience_to_next_level': self.experience_to_next_level,
+            'level_progress_percentage': round(self.level_progress_percentage, 2),
+            'total_rewards': float(self.total_rewards),
+            'role': self.role,
+            'is_verified': self.is_verified,
             'avatar_url': self.avatar_url,
-            'is_premium': self.is_premium_active
+            'created_at': self.created_at.isoformat(),
+            'last_login_at': self.last_login_at.isoformat() if self.last_login_at else None
         }
-        if include_private:
+        
+        if include_sensitive:
             data.update({
                 'email': self.email,
-                'pi_balance': float(self.pi_balance),
-                'experience_points': self.experience_points,
-                'email_verified': self.email_verified,
-                'two_factor_enabled': self.two_factor_enabled,
-                'last_login': self.last_login.isoformat() if self.last_login else None,
-                'timezone': self.timezone,
-                'preferred_language': self.preferred_language
+                'is_active': self.is_active,
+                'is_locked': self.is_locked,
+                'failed_login_attempts': self.failed_login_attempts
             })
+        
         return data
+    
+    @staticmethod
+    def _calculate_xp_for_level(level: int) -> int:
+        """Calculate total XP required for a specific level."""
+        if level <= 1:
+            return 0
+        # Exponential XP curve: XP = 100 * level^1.5
+        return int(100 * (level ** 1.5))
+    
+    @staticmethod
+    def _calculate_level_from_xp(total_xp: int) -> int:
+        """Calculate level based on total XP."""
+        level = 1
+        while User._calculate_xp_for_level(level + 1) <= total_xp:
+            level += 1
+        return level
+    
+    @staticmethod
+    def _calculate_level_rewards(old_level: int, new_level: int) -> float:
+        """Calculate Pi rewards for leveling up."""
+        total_rewards = 0.0
+        for level in range(old_level + 1, new_level + 1):
+            # Base reward increases with level
+            base_reward = 0.1 * (1 + (level - 1) * 0.1)
+            total_rewards += base_reward
+        return total_rewards
+    
+    def __repr__(self) -> str:
+        return f"<User {self.username} (Level {self.level})>"
 
-# Auto-update timestamps
+
+# Event listeners for automatic updates
 @event.listens_for(User, 'before_update')
-def update_timestamp(mapper, connection, target):
+def update_modified_timestamp(mapper, connection, target):
+    """Update timestamp on model changes."""
     target.updated_at = datetime.utcnow()
+
+
+@event.listens_for(User.username, 'set')
+def validate_username_change(target, value, old_value, initiator):
+    """Validate username on change."""
+    if value and not validate_username(value):
+        raise ValidationError("Invalid username format")
+
+
+@event.listens_for(User.email, 'set')
+def validate_email_change(target, value, old_value, initiator):
+    """Validate email on change."""
+    if value and not validate_email(value):
+        raise ValidationError("Invalid email format")
