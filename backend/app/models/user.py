@@ -12,7 +12,39 @@ from flask_login import UserMixin
 from sqlalchemy import event
 from sqlalchemy.ext.hybrid import hybrid_property
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_bcrypt import Bcrypt
+from app import db
+import uuid
+from datetime import datetime
 
+bcrypt = Bcrypt()
+
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(200), nullable=False)  # Renamed to password_hash
+    role = db.Column(db.String(20), default='user')  # 'user' or 'admin'
+    level = db.Column(db.Integer, default=1)
+    xp = db.Column(db.Float, default=0.0)
+    rewards = db.Column(db.Float, default=0.0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def set_password(self, password):
+        self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+
+    def check_password(self, password):
+        return bcrypt.check_password_hash(self.password_hash, password)
+
+    def add_xp(self, xp_gained):
+        self.xp += xp_gained
+        while self.xp >= 100:  # Level up when XP reaches 100
+            self.level += 1
+            self.xp -= 100
+
+    def __repr__(self):
+        return f"<User {self.username}>"
 from app import db
 
 class User(UserMixin, db.Model):
