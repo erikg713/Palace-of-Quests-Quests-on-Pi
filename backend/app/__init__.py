@@ -1,108 +1,132 @@
+"""
+Palace of Quests Application Factory
+Enhanced Flask application with modular architecture and security best practices.
+"""
+
 import os
-import base64
-import hashlib
-import hmac
-import json
-from flask import Flask, request, jsonify, session, g
-from functools import wraps
+import logging
+from typing import Optional
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
-from flask_jwt_extended import JWTManager
+from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
-db = SQLAlchemy()
-migrate = Migrate()
-jwt = JWTManager()
+from app.extensions import db, migrate, jwt, bcrypt, cache
+from app.core.auth import configure_auth_handlers
+from app.core.errors import register_error_handlers
+from app.core.logging import setup_logging
+from app.middleware.security import SecurityMiddleware
+from app.middleware.request_context import RequestContextMiddleware
 
-def create_app():
+
+def create_app(config_name: Optional[str] = None) -> Flask:
+    """
+    Application factory pattern for creating Flask instances.
+    
+    Args:
+        config_name: Configuration environment name
+        
+    Returns:
+        Configured Flask application instance
+    """
     app = Flask(__name__)
-    app.config.from_object('app.config.Config')
-
+    
+    # Load configuration
+    config_class = _get_config_class(config_name)
+    app.config.from_object(config_class)
+    
+    # Setup logging first
+    setup_logging(app)
+    
     # Initialize extensions
+    _initialize_extensions(app)
+    
+    # Configure middleware
+    _configure_middleware(app)
+    
+    # Register blueprints
+    _register_blueprints(app)
+    
+    # Setup error handlers
+    register_error_handlers(app)
+    
+    # Configure authentication
+    configure_auth_handlers(app)
+    
+    # Setup rate limiting
+    _setup_rate_limiting(app)
+    
+    app.logger.info(f"Application initialized in {app.config.get('ENV', 'unknown')} mode")
+    
+    return app
+
+
+def _get_config_class(config_name: Optional[str]):
+    """Get configuration class based on environment."""
+    from app.config import config_map
+    
+    env = config_name or os.environ.get('FLASK_ENV', 'production').lower()
+    return config_map.get(env, config_map['production'])
+
+
+def _initialize_extensions(app: Flask) -> None:
+    """Initialize Flask extensions with the app instance."""
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
+    bcrypt.init_app(app)
+    cache.init_app(app)
+    
+    # CORS configuration for Pi Network integration
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": [
+                "https://sandbox.minepi.com",
+                "https://app.minepi.com",
+                "http://localhost:3000"  # Development frontend
+            ],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"]
+        }
+    })
 
-    # Register blueprints
+
+def _configure_middleware(app: Flask) -> None:
+    """Configure application middleware."""
+    SecurityMiddleware(app)
+    RequestContextMiddleware(app)
+
+
+def _register_blueprints(app: Flask) -> None:
+    """Register application blueprints with proper URL prefixes."""
     from app.blueprints.auth import auth_bp
+    from app.blueprints.users import users_bp
     from app.blueprints.quests import quests_bp
     from app.blueprints.marketplace import marketplace_bp
     from app.blueprints.transactions import transactions_bp
-    app.register_blueprint(auth_bp, url_prefix='/api/auth')
-    app.register_blueprint(quests_bp, url_prefix='/api/quests')
-    app.register_blueprint(marketplace_bp, url_prefix='/api/marketplace')
-    app.register_blueprint(transactions_bp, url_prefix='/api/transactions')
+    from app.blueprints.admin import admin_bp
+    from app.blueprints.leaderboard import leaderboard_bp
+    
+    # API blueprints
+    app.register_blueprint(auth_bp, url_prefix='/api/v1/auth')
+    app.register_blueprint(users_bp, url_prefix='/api/v1/users')
+    app.register_blueprint(quests_bp, url_prefix='/api/v1/quests')
+    app.register_blueprint(marketplace_bp, url_prefix='/api/v1/marketplace')
+    app.register_blueprint(transactions_bp, url_prefix='/api/v1/transactions')
+    app.register_blueprint(leaderboard_bp, url_prefix='/api/v1/leaderboard')
+    
+    # Admin blueprint with separate prefix
+    app.register_blueprint(admin_bp, url_prefix='/admin/api/v1')
 
-    return app
-def verify_pi_auth(payload: dict, signature: str, pi_api_key: str) -> bool:
-    """
-    Verifies the Pi Network authentication payload using HMAC SHA256.
-    Follows Pi Network's backend verification guide.
-    """
-    message = json.dumps(payload, separators=(',', ':'), sort_keys=True)
-    signature_bytes = base64.b64decode(signature)
-    expected_signature = hmac.new(
-        key=pi_api_key.encode('utf-8'),
-        msg=message.encode('utf-8'),
-        digestmod=hashlib.sha256
-    ).digest()
-    return hmac.compare_digest(signature_bytes, expected_signature)
 
-def pi_login_required(fn):
-    """
-    Decorator to protect routes, requiring Pi authentication.
-    """
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        user = session.get('pi_user')
-        if not user:
-            return jsonify({'error': 'Authentication required'}), 401
-        g.pi_user = user
-        return fn(*args, **kwargs)
-    return wrapper
-
-def configure_pi_auth_handlers(app: Flask):
-    # Set your Pi API key as an environment variable for security
-    app.config['PI_API_KEY'] = os.environ.get('PI_API_KEY', 'replace_with_real_key')
-
-    @app.route('/pi/auth', methods=['POST'])
-    def pi_auth():
-        """
-        Frontend sends: { payload: {...}, signature: "..." }
-        """
-        data = request.get_json()
-        payload = data.get('payload')
-        signature = data.get('signature')
-        api_key = app.config['PI_API_KEY']
-        if not payload or not signature:
-            return jsonify({'error': 'Invalid request'}), 400
-
-        if not verify_pi_auth(payload, signature, api_key):
-            return jsonify({'error': 'Invalid signature'}), 401
-
-        # Optionally: check user fields, save in session
-        session['pi_user'] = {
-            'username': payload.get('username'),
-            'uid': payload.get('uid'),
-            # Add any fields you want to use for the session
-        }
-        return jsonify({'msg': 'Authentication successful', 'user': session['pi_user']})
-
-    @app.route('/logout', methods=['POST'])
-    def logout():
-        session.pop('pi_user', None)
-        return jsonify({'msg': 'Logged out'})
-
-    # Example protected endpoint
-    @app.route('/protected', methods=['GET'])
-    @pi_login_required
-    def protected():
-        user = g.pi_user
-        return jsonify({'msg': f'Hello, {user["username"]}! This is a protected route.'})
-
-def create_app():
-    app = Flask(__name__)
-    # Use a strong secret key in production!
-    app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'replace_with_a_real_secret')
-    configure_pi_auth_handlers(app)
-    return app
+def _setup_rate_limiting(app: Flask) -> None:
+    """Configure rate limiting for API endpoints."""
+    limiter = Limiter(
+        app,
+        key_func=get_remote_address,
+        default_limits=["200 per day", "50 per hour"],
+        storage_uri=app.config.get('RATELIMIT_STORAGE_URL', 'memory://')
+    )
+    
+    # Store limiter in app for use in blueprints
+    app.limiter = limiter
