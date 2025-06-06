@@ -64,3 +64,42 @@ def invalid_token_callback(error):
 def missing_token_callback(error):
     """Handles missing JWT tokens."""
     return _JWT_ERROR_RESPONSES["required"]
+"""
+Flask Extensions Configuration
+Centralized extension initialization for better dependency management.
+"""
+
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from flask_jwt_extended import JWTManager
+from flask_bcrypt import Bcrypt
+from flask_caching import Cache
+from flask_marshmallow import Marshmallow
+
+# Initialize extensions
+db = SQLAlchemy()
+migrate = Migrate()
+jwt = JWTManager()
+bcrypt = Bcrypt()
+cache = Cache()
+ma = Marshmallow()
+
+# Custom configurations
+def configure_jwt(app):
+    """Configure JWT settings and callbacks."""
+    
+    @jwt.expired_token_loader
+    def expired_token_callback(jwt_header, jwt_payload):
+        return {'message': 'Token has expired', 'error': 'token_expired'}, 401
+    
+    @jwt.invalid_token_loader
+    def invalid_token_callback(error):
+        return {'message': 'Invalid token', 'error': 'invalid_token'}, 401
+    
+    @jwt.unauthorized_loader
+    def missing_token_callback(error):
+        return {'message': 'Authorization token required', 'error': 'authorization_required'}, 401
+    
+    @jwt.revoked_token_loader
+    def revoked_token_callback(jwt_header, jwt_payload):
+        return {'message': 'Token has been revoked', 'error': 'token_revoked'}, 401
