@@ -2,9 +2,9 @@
 
 import React, { lazy } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth'; // Custom hook for authentication
+import { useAuth } from '../hooks/useAuth';
 
-// Lazy-loaded Components for Code Splitting
+// Lazy-loaded Components for Performance Optimization
 const PaymentList = lazy(() => import('../pages/Payments/PaymentList'));
 const PaymentDetails = lazy(() => import('../pages/Payments/PaymentDetails'));
 const InitiatePayment = lazy(() => import('../pages/Payments/InitiatePayment'));
@@ -13,22 +13,20 @@ const PaymentFailure = lazy(() => import('../pages/Payments/PaymentFailure'));
 
 /**
  * ProtectedRoute Component
- * Ensures that only authenticated users can access certain routes.
+ * Restricts access to authenticated users only.
  */
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated } = useAuth();
 
     if (!isAuthenticated) {
-        // Redirect to login page if not authenticated
         return <Navigate to="/login" replace />;
     }
-
     return children;
 };
 
 /**
  * Payment Routes Configuration
- * Defines all the routes related to payments in the application.
+ * Defines all payment-related routes with appropriate protection.
  */
 const paymentRoutes = [
     {
