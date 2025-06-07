@@ -1,28 +1,32 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import './Sidebar.css'; // Assumes a CSS file for styling
+import React from "react";
+import { NavLink } from "react-router-dom";
+import "./Sidebar.css";
 
-const Sidebar = () => {
-  return (
-    <aside className="sidebar">
-      <nav>
-        <ul>
-          <li>
-            <Link to="/dashboard">Dashboard</Link>
+const links = [
+  { path: "/dashboard", label: "Dashboard" },
+  { path: "/quests", label: "Quests" },
+  { path: "/profile", label: "Profile" },
+  { path: "/settings", label: "Settings" }
+];
+
+const Sidebar = () => (
+  <aside className="sidebar" aria-label="Main sidebar">
+    <nav>
+      <ul>
+        {links.map(({ path, label }) => (
+          <li key={path}>
+            <NavLink
+              to={path}
+              className={({ isActive }) => isActive ? "active" : ""}
+              end
+            >
+              {label}
+            </NavLink>
           </li>
-          <li>
-            <Link to="/quests">Quests</Link>
-          </li>
-          <li>
-            <Link to="/profile">Profile</Link>
-          </li>
-          <li>
-            <Link to="/settings">Settings</Link>
-          </li>
-        </ul>
-      </nav>
-    </aside>
-  );
-};
+        ))}
+      </ul>
+    </nav>
+  </aside>
+);
 
 export default Sidebar;
