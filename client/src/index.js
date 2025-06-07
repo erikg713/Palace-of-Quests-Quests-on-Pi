@@ -1,17 +1,29 @@
-import React from "react";
+import React, { Suspense } from "react";
 import ReactDOM from "react-dom/client";
-import { Provider } from "react-redux"; // Redux Provider
-import store from "./store"; // Redux store
-import App from "./App"; // Root App component
-import "./styles/globals.css"; // Global styles (optional)
+import { Provider } from "react-redux";
+import store from "store";
+import ErrorBoundary from "components/ErrorBoundary";
+import "styles/globals.css";
 
-// Initialize the React application and wrap it with the Redux provider
+const App = React.lazy(() => import("App"));
+
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
 root.render(
-    <React.StrictMode>
-        <Provider store={store}>
-            <App />
-        </Provider>
-    </React.StrictMode>
+  <React.StrictMode>
+    <ErrorBoundary>
+      <Provider store={store}>
+        <Suspense fallback={<div>Loading...</div>}>
+          <App />
+        </Suspense>
+      </Provider>
+    </ErrorBoundary>
+  </React.StrictMode>
 );
+
+// For debugging in development only
+if (process.env.NODE_ENV === "development") {
+  store.subscribe(() => {
+    console.debug("Redux state:", store.getState());
+  });
+}
