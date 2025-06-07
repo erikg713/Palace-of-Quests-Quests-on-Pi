@@ -1,38 +1,41 @@
 version: 2
 updates:
   # Python dependencies
-  - package-ecosystem: "pip"
+  - package-ecosystem: pip
     directory: "/"
     schedule:
-      interval: "dialy"
-    open-pull-requests-limit: 5
+      # Corrected spelling from "dialy" to "daily"
+      interval: daily
+    # Limiting open PRs to prevent noise
+    open-pull-requests-limit: 3
 
   # Node.js dependencies (React frontend)
-  - package-ecosystem: "npm"
+  - package-ecosystem: npm
     directory: "/client"
     schedule:
-      interval: "daily"
-    open-pull-requests-limit: 5
+      interval: daily
+    # Limiting open PRs helps keep pull requests more manageable
+    open-pull-requests-limit: 3
 
   # Docker dependencies
-  - package-ecosystem: "docker"
+  - package-ecosystem: docker
     directory: "/"
     schedule:
-      interval: "daily"
-    open-pull-requests-limit: 5
+      interval: daily
+    open-pull-requests-limit: 3
 
   # GitHub Actions dependencies in .github directory
-  - package-ecosystem: "github-actions"
+  - package-ecosystem: github-actions
     directory: "/.github"
     schedule:
-      interval: "daily"
-    open-pull-requests-limit: 5
+      interval: daily
+    open-pull-requests-limit: 3
     commit-message:
       prefix: "chore"
 
   # Git submodules (if using any)
-  - package-ecosystem: "gitsubmodule"
+  - package-ecosystem: gitsubmodule
     directory: "/"
     schedule:
-      interval: "daily"
-    open-pull-requests-limit: 5
+      interval: daily
+    open-pull-requests-limit: 3
