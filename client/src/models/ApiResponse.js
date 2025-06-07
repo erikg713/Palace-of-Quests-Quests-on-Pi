@@ -1,20 +1,44 @@
-// ApiResponse.js
+/**
+ * @class ApiResponse
+ * Represents a standard API response structure.
+ */
 export class ApiResponse {
-  constructor(success, data, message = '') {
-    this.success = success; // Boolean indicating if the response was successful
-    this.data = data; // Actual data payload
-    this.message = message; // Optional message (e.g., error message)
+  /**
+   * @param {boolean} success - Indicates if the response was successful.
+   * @param {Object|Array|null} data - The actual data payload.
+   * @param {string} [message=""] - Optional message (e.g., error description).
+   */
+  constructor(success, data = null, message = '') {
+    if (typeof success !== 'boolean') {
+      throw new TypeError('ApiResponse "success" must be a boolean.');
+    }
+    this.success = success;
+
+    // Defensive copy and freezing for immutability
+    if (data && (typeof data === 'object' || Array.isArray(data))) {
+      this.data = Array.isArray(data)
+        ? Object.freeze([...data])
+        : Object.freeze({ ...data });
+    } else {
+      this.data = data;
+    }
+
+    this.message = typeof message === 'string' ? message : String(message);
+
+    Object.freeze(this); // Make the ApiResponse instance immutable
   }
 
-  // Example method to check if the response has data
+  /**
+   * Checks if the response contains non-empty data.
+   * @returns {boolean}
+   */
   hasData() {
-    return this.data && Object.keys(this.data).length > 0;
+    if (Array.isArray(this.data)) {
+      return this.data.length > 0;
+    }
+    if (this.data && typeof this.data === 'object') {
+      return Object.keys(this.data).length > 0;
+    }
+    return !!this.data;
   }
-}
-
-import { ApiResponse } from '../models/ApiResponse';
-
-const response = new ApiResponse(true, { username: 'JohnDoe' }, 'Request successful');
-if (response.hasData()) {
-  console.log(response.data.username); // "JohnDoe"
 }
