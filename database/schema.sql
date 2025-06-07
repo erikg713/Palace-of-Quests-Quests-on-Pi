@@ -1,80 +1,120 @@
--- Users table
+-- Palace of Quests (Pi Quest) Database Schema
+-- Author: erikg713
+-- Revised: 2025-06-07
+-- Description: Core schema for users, inventory, quests, achievements, payments, level rewards, and premium benefits.
+-- Notes:
+--   - Uses strict constraints and normalization for reliability.
+--   - Includes indexing and audit columns for performance and maintainability.
+--   - All timestamps default to current time; auto-update triggers recommended for production.
+
+-- ===============================
+-- USERS
+-- ===============================
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(128) NOT NULL,
-    wallet_address VARCHAR(100) NOT NULL
+    wallet_address VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Inventory table
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+
+-- ===============================
+-- INVENTORY
+-- ===============================
 CREATE TABLE IF NOT EXISTS inventory (
     id SERIAL PRIMARY KEY,
     item_name VARCHAR(100) NOT NULL,
     item_type VARCHAR(50) NOT NULL,
-    price NUMERIC(10, 2),
+    price NUMERIC(10,2) CHECK (price >= 0),
     rarity VARCHAR(20) DEFAULT 'common',
-    upgrade_level INTEGER DEFAULT 1,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    upgrade_level INTEGER DEFAULT 1 CHECK (upgrade_level > 0),
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Quests table
+CREATE INDEX IF NOT EXISTS idx_inventory_user_id ON inventory(user_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_item_name ON inventory(item_name);
+
+-- ===============================
+-- QUESTS
+-- ===============================
 CREATE TABLE IF NOT EXISTS quests (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     description TEXT,
-    type VARCHAR(50) DEFAULT 'standard',
+    type VARCHAR(50) DEFAULT 'standard' CHECK (type IN ('standard', 'daily', 'event')),
     is_completed BOOLEAN DEFAULT FALSE,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Payments table
+CREATE INDEX IF NOT EXISTS idx_quests_user_id ON quests(user_id);
+
+-- ===============================
+-- PAYMENTS
+-- ===============================
 CREATE TABLE IF NOT EXISTS payments (
     id SERIAL PRIMARY KEY,
     payment_id VARCHAR(100) UNIQUE NOT NULL,
-    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed')),
     txid VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
--- Achievements table
+CREATE INDEX IF NOT EXISTS idx_payments_payment_id ON payments(payment_id);
+
+-- ===============================
+-- ACHIEVEMENTS
+-- ===============================
 CREATE TABLE IF NOT EXISTS achievements (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) UNIQUE NOT NULL,
     description TEXT,
-    points INTEGER DEFAULT 10
+    points INTEGER DEFAULT 10 CHECK (points >= 0)
 );
 
--- User achievements table
+CREATE INDEX IF NOT EXISTS idx_achievements_name ON achievements(name);
+
 CREATE TABLE IF NOT EXISTS user_achievements (
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    achievement_id INTEGER REFERENCES achievements(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    achievement_id INTEGER NOT NULL REFERENCES achievements(id) ON DELETE CASCADE ON UPDATE CASCADE,
     date_earned TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, achievement_id)
 );
 
--- Level rewards table
+-- ===============================
+-- LEVEL REWARDS
+-- ===============================
 CREATE TABLE IF NOT EXISTS level_rewards (
-    level INTEGER PRIMARY KEY,
+    level INTEGER PRIMARY KEY CHECK (level > 0),
     reward_name VARCHAR(100),
     reward_description TEXT,
-    stat_boost INTEGER DEFAULT 0,
+    stat_boost INTEGER DEFAULT 0 CHECK (stat_boost >= 0),
     item_unlock VARCHAR(100),
-    quest_difficulty INTEGER NOT NULL
+    quest_difficulty INTEGER NOT NULL CHECK (quest_difficulty BETWEEN 1 AND 10)
 );
 
--- Premium benefits table
+-- ===============================
+-- PREMIUM BENEFITS
+-- ===============================
 CREATE TABLE IF NOT EXISTS premium_benefits (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) UNIQUE NOT NULL,
     description TEXT,
-    price_pi DECIMAL(10, 2) NOT NULL,
-    benefit_type VARCHAR(50) CHECK (benefit_type IN ('xp_boost', 'item', 'guild_access')),
+    price_pi DECIMAL(10,2) NOT NULL CHECK (price_pi >= 0),
+    benefit_type VARCHAR(50) NOT NULL CHECK (benefit_type IN ('xp_boost', 'item', 'guild_access')),
     duration_days INTEGER DEFAULT 0 CHECK (duration_days >= 0)
 );
 
--- Insert premium benefits
+-- Pre-populate premium benefits (idempotent)
 INSERT INTO premium_benefits (name, description, price_pi, benefit_type, duration_days)
 VALUES 
     ('XP Boost', 'Double experience points for 7 days', 5.00, 'xp_boost', 7),
@@ -82,8 +122,14 @@ VALUES
     ('Premium Guild Pass', 'Access to elite guilds with exclusive quests', 10.00, 'guild_access', 30)
 ON CONFLICT (name) DO NOTHING;
 
--- Indexing for performance
-CREATE INDEX IF NOT EXISTS idx_user_id ON users (id);
-CREATE INDEX IF NOT EXISTS idx_payment_id ON payments (payment_id);
-CREATE INDEX IF NOT EXISTS idx_quest_user_id ON quests (user_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_user_id ON inventory (user_id);
+-- ===============================
+-- INDEXES FOR PERFORMANCE
+-- ===============================
+-- (Additional indexes are placed after each relevant table for clarity.)
+
+-- ===============================
+-- FUTURE RECOMMENDATIONS
+-- ===============================
+-- For `updated_at` fields, add triggers in production to auto-update on row changes.
+-- Partition large tables (e.g., payments) if rapid growth is expected.
+-- Use roles and permissions at the database level for security.
