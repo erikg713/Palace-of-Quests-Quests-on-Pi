@@ -85,3 +85,62 @@ const store = configureStore({
 });
 
 export default store;
+import { configureStore, combineReducers } from '@reduxjs/toolkit';
+import { 
+  persistStore, 
+  persistReducer,
+  FLUSH,
+  REHYDRATE,
+  PAUSE,
+  PERSIST,
+  PURGE,
+  REGISTER
+} from 'redux-persist';
+import storage from 'redux-persist/lib/storage';
+import { createLogger } from 'redux-logger';
+import authReducer from './authSlice';
+import questsReducer from './questsSlice';
+
+// Configuration for Redux Persist
+const persistConfig = {
+  key: 'root',
+  version: 1,
+  storage,
+  whitelist: ['auth'], // Only persist auth state
+};
+
+// Combine all reducers
+const rootReducer = combineReducers({
+  auth: authReducer,
+  quests: questsReducer,
+});
+
+// Create persisted reducer
+const persistedReducer = persistReducer(persistConfig, rootReducer);
+
+// Configure middleware based on environment
+const middleware = [];
+if (process.env.NODE_ENV === 'development') {
+  middleware.push(createLogger({ collapsed: true }));
+}
+
+// Configure the store with persisted state
+const store = configureStore({
+  reducer: persistedReducer,
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: {
+        ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
+      },
+    }).concat(middleware),
+  devTools: process.env.NODE_ENV !== 'production',
+});
+
+// Create persistor
+export const persistor = persistStore(store);
+
+// Export types
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+
+export default store;
