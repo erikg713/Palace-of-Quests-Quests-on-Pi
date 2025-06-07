@@ -1,21 +1,42 @@
 import React from 'react';
+import PropTypes from 'prop-types';
+import styles from './QuestProgress.module.css';
 
-const QuestProgress = ({ progress }) => {
+/**
+ * QuestProgress - Displays a progress bar with percentage.
+ *
+ * @param {Object} props
+ * @param {number} props.progress - The progress percentage (0-100)
+ */
+function QuestProgress({ progress }) {
+  // Clamp progress between 0 and 100
+  const safeProgress = Math.max(0, Math.min(progress, 100));
+  const isComplete = safeProgress === 100;
+
   return (
-    <div>
-      <div style={{ width: '100%', backgroundColor: '#ddd', height: '20px', borderRadius: '5px' }}>
+    <div className={styles.container}>
+      <div
+        className={styles.barBackground}
+        aria-label="Quest Progress"
+        role="progressbar"
+        aria-valuenow={safeProgress}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
         <div
-          style={{
-            width: `${progress}%`,
-            backgroundColor: progress === 100 ? '#4caf50' : '#2196f3',
-            height: '100%',
-            borderRadius: '5px',
-          }}
+          className={isComplete ? styles.barFillComplete : styles.barFill}
+          style={{ width: `${safeProgress}%` }}
         />
       </div>
-      <p>{progress}% completed</p>
+      <span className={styles.progressText}>
+        {safeProgress}% completed
+      </span>
     </div>
   );
+}
+
+QuestProgress.propTypes = {
+  progress: PropTypes.number.isRequired,
 };
 
 export default QuestProgress;
