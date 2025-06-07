@@ -19,7 +19,7 @@ gunicorn==23.0.0                 # WSGI HTTP Server for production
 black==24.3.0                    # Code formatter
 pylint==2.17.4                   # Linter for Python
 pytest==8.4.0                    # Unit testing framework
-pytest-flask==1.2.0              # Pytest plugin for testing Flask apps
+pytest-flask==1.3.0              # Pytest plugin for testing Flask apps
 
 # Miscellaneous
 Werkzeug==3.0.6                  # WSGI utility library
