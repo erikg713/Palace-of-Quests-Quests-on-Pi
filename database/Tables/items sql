@@ -1,0 +1,9 @@
+CREATE TABLE items (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    rarity TEXT CHECK (rarity IN ('common','rare','epic','legendary')),
+    is_nft BOOLEAN DEFAULT FALSE,
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
