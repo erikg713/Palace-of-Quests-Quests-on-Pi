@@ -39,3 +39,32 @@ if __name__ == "__main__":
         port=int(os.getenv('PORT', 5000)),
         debug=dev_app.config.get('DEBUG', True)
     )
+
+# backend/app.py
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import os
+import requests
+
+app = Flask(__name__)
+CORS(app)  # Enable cross-origin requests
+
+# Pi Network Authentication
+PI_AUTH_URL = "https://api.minepi.com/v2"
+PI_API_KEY = os.getenv("PI_API_KEY")
+
+@app.route("/auth", methods=["POST"])
+def authenticate():
+    data = request.json
+    user_token = data.get("access_token")
+    
+    headers = {"Authorization": f"Bearer {user_token}"}
+    response = requests.get(f"{PI_AUTH_URL}/me", headers=headers)
+    
+    if response.status_code == 200:
+        return jsonify(response.json()), 200
+    else:
+        return jsonify({"error": "Authentication failed"}), 401
+
+if __name__ == "__main__":
+    app.run(debug=True)
