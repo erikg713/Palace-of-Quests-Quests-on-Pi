@@ -6,7 +6,33 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY")
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+import os
 
+class BaseConfig:
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    JSON_SORT_KEYS = False
+    JSONIFY_PRETTYPRINT_REGULAR = False
+    PI_AUTH_URL = "https://api.minepi.com/v2"
+    REQUEST_TIMEOUT = 5
+
+class DevelopmentConfig(BaseConfig):
+    DEBUG = True
+    ENV = "development"
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:///dev.db')
+    JSONIFY_PRETTYPRINT_REGULAR = True
+
+class ProductionConfig(BaseConfig):
+    DEBUG = False
+    ENV = "production"
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
+
+def get_config(config_name):
+    if config_name == "development":
+        return DevelopmentConfig
+    return ProductionConfig
     @staticmethod
     def validate():
         if not Config.SECRET_KEY:
