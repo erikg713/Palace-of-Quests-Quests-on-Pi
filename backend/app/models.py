@@ -1,3 +1,13 @@
+# backend/models.py
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    pi_username = db.Column(db.String(80), unique=True, nullable=False)
+    wallet_address = db.Column(db.String(200), unique=True, nullable=False)
+
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import uuid
