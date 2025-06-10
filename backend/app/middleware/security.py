@@ -54,3 +54,11 @@ def init_security_headers(app: Flask) -> None:
             }), 413
     
     app.logger.info("Security headers middleware initialized successfully")
+def init_security_headers(app):
+    @app.after_request
+    def set_headers(response):
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Referrer-Policy'] = 'no-referrer'
+        response.headers['Content-Security-Policy'] = "default-src 'self'"
+        return response
