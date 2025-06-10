@@ -4,6 +4,11 @@ The __init__.py file is used to organize and initialize these routes for use in 
 """
 
 from flask import Flask
+from .auth import auth_bp
+
+def register_blueprints(app):
+    app.register_blueprint(auth_bp)
+    # Register other blueprints here
 
 def init_app(app: Flask):
     """
