@@ -17,7 +17,31 @@ from app.core.errors import register_error_handlers
 from app.core.logging import setup_logging
 from app.middleware.security import SecurityMiddleware
 from app.middleware.request_context import RequestContextMiddleware
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from flask_cors import CORS
 
+db = SQLAlchemy()
+migrate = Migrate()
+cors = CORS()
+from flask import Flask
+from .config import get_config
+from .extensions import db, migrate, cors
+from .routes import register_blueprints
+from .middleware import register_middlewares
+
+def create_app(env=None):
+    app = Flask(__name__)
+    app.config.from_object(get_config(env))
+
+    db.init_app(app)
+    migrate.init_app(app, db)
+    cors.init_app(app)
+
+    register_middlewares(app)
+    register_blueprints(app)
+
+    return app
 
 def create_app(config_name: Optional[str] = None) -> Flask:
     """
