@@ -213,3 +213,13 @@ def rate_limit(requests_per_hour: int = None):
             return f(*args, **kwargs)
         return decorated_function
     return decorator
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+def init_rate_limiter(app):
+    limiter = Limiter(
+        app,
+        key_func=get_remote_address,
+        default_limits=["200 per day", "50 per hour"]
+    )
+    app.limiter = limiter
