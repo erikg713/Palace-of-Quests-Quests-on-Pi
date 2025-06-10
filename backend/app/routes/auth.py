@@ -1,71 +1,32 @@
-from flask import Blueprint, request, jsonify
-import os
-import jwt
-from datetime import datetime, timedelta
-from models import User, db
+from flask import Blueprint, request, jsonify, current_app
+import requests
 
-auth_bp = Blueprint('auth', __name__)
+auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
-@auth_bp.route('/register', methods=['POST'])
-def register():
+@auth_bp.route("", methods=["POST"])
+def authenticate():
+    """
+    Authenticate user via Pi Network.
+    """
     data = request.get_json(silent=True)
-    if not data:
-        return jsonify({'error': 'Invalid JSON payload'}), 400
+    if not data or "access_token" not in data:
+        return jsonify({"error": "Missing access_token in request body"}), 400
 
-    username = data.get('username', '').strip()
-    pi_wallet = data.get('pi_wallet', '').strip()
-
-    if not username or not pi_wallet:
-        return jsonify({'error': 'Missing required fields: username and pi_wallet'}), 400
-
-    # Check if user already exists
-    existing_user = User.query.filter(
-        (User.username == username) | (User.pi_wallet == pi_wallet)
-    ).first()
-    if existing_user:
-        return jsonify({'error': 'User with given username or pi_wallet already exists'}), 409
-
-    new_user = User(username=username, pi_wallet=pi_wallet, balance=0.0)
-    db.session.add(new_user)
+    user_token = data["access_token"]
+    pi_api_url = current_app.config.get("PI_AUTH_URL")
+    timeout = current_app.config.get("REQUEST_TIMEOUT", 5)
+    
     try:
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': 'Database error occurred'}), 500
-
-    return jsonify({
-        'message': 'User registered successfully',
-        'user_id': new_user.id
-    }), 201
-
-@auth_bp.route('/login', methods=['POST'])
-def login():
-    data = request.get_json(silent=True)
-    if not data:
-        return jsonify({'error': 'Invalid JSON payload'}), 400
-
-    pi_wallet = data.get('pi_wallet', '').strip()
-    if not pi_wallet:
-        return jsonify({'error': 'Missing required field: pi_wallet'}), 400
-
-    user = User.query.filter_by(pi_wallet=pi_wallet).first()
-    if not user:
-        return jsonify({'error': 'User not found'}), 404
-
-    payload = {
-        'user_id': user.id,
-        'exp': datetime.utcnow() + timedelta(hours=24)
-    }
-    secret_key = os.getenv('SECRET_KEY')
-    if not secret_key:
-        # Log a warning in real usage, don't expose in prod
-        secret_key = 'defaultsecret'
-
-    token = jwt.encode(payload, secret_key, algorithm='HS256')
-    if isinstance(token, bytes):
-        token = token.decode('utf-8')
-
-    return jsonify({
-        'message': 'Login successful',
-        'token': token
-    }), 200
+        response = requests.get(
+            f"{pi_api_url}/me",
+            headers={"Authorization": f"Bearer {user_token}"},
+            timeout=timeout
+        )
+        response.raise_for_status()
+        return jsonify(response.json()), 200
+    except requests.HTTPError as http_err:
+        current_app.logger.warning(f"Pi API authentication failed: {http_err}")
+        return jsonify({"error": "Authentication failed", "detail": str(http_err)}), 401
+    except requests.RequestException as req_err:
+        current_app.logger.error(f"Request to Pi API failed: {req_err}")
+        return jsonify({"error": "Pi API unavailable", "detail": str(req_err)}), 503
