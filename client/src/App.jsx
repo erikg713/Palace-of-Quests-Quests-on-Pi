@@ -1,8 +1,9 @@
 import React, { useState, useCallback } from "react";
 import { PiSDK } from "@pi-network/pi-sdk";
+import "./App.css";
 
 const App = () => {
-  const [userData, setUserData] = useState(null);
+  const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
 
@@ -11,8 +12,9 @@ const App = () => {
     setAuthError("");
     try {
       const authData = await PiSDK.auth({ permissions: ["payments", "username"] });
-      setUserData(authData);
+      setUser(authData);
     } catch (error) {
+      // Ideally, replace console.error with a logging service in production
       console.error("Pi Authentication Error:", error);
       setAuthError("Authentication failed. Please try again.");
     } finally {
@@ -21,22 +23,39 @@ const App = () => {
   }, []);
 
   return (
-    <main style={{
-      minHeight: "100vh",
-      background: "linear-gradient(135deg, #2d2e6e 0%, #7e54f5 100%)",
-      color: "#fff",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      fontFamily: "Inter, Segoe UI, Arial, sans-serif"
-    }}>
-      <h1 style={{
-        fontWeight: 700,
-        fontSize: "2.5rem",
-        marginBottom: "1.5rem",
-        letterSpacing: "2px"
-      }}>
-        Palace of Quests
-      </h1>
-      {user
+    <main className="app-container" role="main" tabIndex={-1}>
+      <header className="app-header">
+        <h1>Palace of Quests</h1>
+        <p className="app-subtitle">Enter the Pi-powered metaverse and begin your journey.</p>
+      </header>
+      <section className="auth-section">
+        {!user ? (
+          <>
+            <button
+              className="auth-btn"
+              onClick={authenticatePiUser}
+              disabled={authLoading}
+              aria-busy={authLoading}
+            >
+              {authLoading ? "Signing in..." : "Sign in with Pi Network"}
+            </button>
+            {authError && (
+              <div className="auth-error" role="alert">
+                {authError}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="user-info">
+            <p>
+              <strong>Welcome,</strong> {user.username}
+            </p>
+            {/* Add additional user info or actions here */}
+          </div>
+        )}
+      </section>
+    </main>
+  );
+};
+
+export default App;
