@@ -463,3 +463,14 @@ def handle_progress_completion(mapper, connection, target):
             difficulty_multiplier=target.quest.difficulty_multiplier
         )
         db.session.add(reward)
+
+from app.extensions import db
+
+class Quest(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(128), nullable=False)
+    description = db.Column(db.Text)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+
+    def __repr__(self):
+        return f"<Quest {self.name}>"
