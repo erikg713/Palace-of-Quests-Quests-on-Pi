@@ -2,7 +2,14 @@
 This package contains all the route modules for the backend application.
 The __init__.py file is used to organize and initialize these routes for use in the Flask app.
 """
+from .auth import auth_bp
+# from .quests import quests_bp
+# ... import other blueprints here
 
+def register_blueprints(app):
+    app.register_blueprint(auth_bp)
+    # app.register_blueprint(quests_bp)
+    # ... register other blueprints here
 from flask import Flask
 from .auth import auth_bp
 
