@@ -15,6 +15,12 @@
 
 ## 🛠️ Tech Stack
 
+### Dependencies
+- **Backend**
+pip install flask flask-cors flask-sqlalchemy requests
+- **Frontend**
+npm install @pi-network/pi-sdk axios
+
 ### Frontend
 - **React**: Interactive and scalable user interfaces.
 - **React Native** *(Future Plan)*: Mobile-first design for cross-platform support.
