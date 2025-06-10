@@ -40,3 +40,16 @@ def verify_payment():
     # Simulate verification logic
     verified = True  # Replace with real check
     return api_response(message="Payment verified" if verified else "Payment not verified", data={'verified': verified})
+@app.route("/pay", methods=["POST"])
+def process_payment():
+    data = request.json
+    payment_id = data.get("payment_id")
+    
+    headers = {"Authorization": f"Bearer {PI_API_KEY}"}
+    response = requests.post(f"{PI_AUTH_URL}/payments/{payment_id}", headers=headers)
+    
+    if response.status_code == 200:
+        payment_data = response.json()
+        return jsonify({"status": "success", "payment": payment_data}), 200
+    else:
+        return jsonify({"error": "Payment failed"}), 400
