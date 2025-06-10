@@ -90,5 +90,17 @@ def setup_logging(app: Flask) -> None:
         response.headers['X-Request-ID'] = g.request_id
         
         return response
-    
+    import logging
+
+def setup_logging(app):
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.INFO)
+    formatter = logging.Formatter(
+        '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
+    )
+    handler.setFormatter(formatter)
+    if not app.logger.handlers:
+        app.logger.addHandler(handler)
+    app.logger.setLevel(logging.INFO)
+    app.logger.info("Logging middleware initialized")
     app.logger.info("Logging middleware initialized successfully")
