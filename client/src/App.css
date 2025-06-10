@@ -1,0 +1,60 @@
+.app-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #2d2e6e 0%, #7e54f5 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+}
+
+.app-header h1 {
+  font-weight: 700;
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  letter-spacing: 2px;
+}
+
+.app-subtitle {
+  margin-bottom: 2rem;
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+
+.auth-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.auth-btn {
+  background: #fff;
+  color: #2d2e6e;
+  border: none;
+  padding: 0.85rem 2rem;
+  font-size: 1.2rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.auth-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.auth-error {
+  margin-top: 1rem;
+  color: #ffbaba;
+  background: #2d2e6e;
+  padding: 0.75rem 1.25rem;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.user-info {
+  margin-top: 1.5rem;
+  font-size: 1.15rem;
+}
