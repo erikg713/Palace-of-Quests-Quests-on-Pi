@@ -6,3 +6,11 @@ CREATE TABLE transactions (
     currency VARCHAR(10) DEFAULT 'Pi',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE transactions (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(50),
+    pi_amount DECIMAL,
+    payment_id VARCHAR(100),
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
