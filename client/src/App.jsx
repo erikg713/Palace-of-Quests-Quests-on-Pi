@@ -16,7 +16,7 @@ const App = () => {
 
   return (
     <div>
-      <h1>Pi Network Web3 App</h1>
+      <h1>WELCOME TO PALACE OF QUESTS!!!!</h1>
       {userData ? (
         <div>
           <h2>Welcome, {userData.username}!</h2>
