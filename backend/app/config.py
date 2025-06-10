@@ -6,9 +6,12 @@ class Config:
     Sensitive information should be set via environment variables.
     """
     SECRET_KEY = os.getenv('SECRET_KEY', 'default_secret_key')
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:///default.db')
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    import os
 
+class Config:
+    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "postgresql+psycopg2://user:password@localhost:5432/pi_users_db")
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SECRET_KEY = os.getenv("SECRET_KEY", "replace-this-with-a-secure-key")
 class DevelopmentConfig(Config):
     """
     Configuration for development environment.
