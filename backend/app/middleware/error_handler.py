@@ -15,7 +15,17 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from marshmallow import ValidationError
 import sentry_sdk
 
+from flask import jsonify
 
+def register_error_handlers(app):
+    @app.errorhandler(404)
+    def not_found(e):
+        return jsonify(error="Not found"), 404
+
+    @app.errorhandler(500)
+    def internal_error(e):
+        app.logger.error(f"Server Error: {e}")
+        return jsonify(error="Internal server error"), 500
 class BusinessLogicError(Exception):
     """Base exception for business logic errors."""
     def __init__(self, message: str, code: str = None, status_code: int = 400):
