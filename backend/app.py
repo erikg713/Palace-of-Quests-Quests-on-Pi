@@ -5,7 +5,33 @@ from backend.routes import register_blueprints
 from dotenv import load_dotenv
 import logging
 import os
+from flask import Flask, request, jsonify
+import requests
+import jwt  # Install with `pip install pyjwt`
+import os
 
+app = Flask(__name__)
+PI_AUTH_URL = "https://api.minepi.com/v2"
+PI_API_KEY = os.getenv("PI_API_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY")
+
+@app.route("/auth", methods=["POST"])
+def authenticate():
+    data = request.json
+    user_token = data.get("access_token")
+    
+    headers = {"Authorization": f"Bearer {user_token}"}
+    response = requests.get(f"{PI_AUTH_URL}/me", headers=headers)
+    
+    if response.status_code == 200:
+        user_data = response.json()
+        token = jwt.encode(user_data, SECRET_KEY, algorithm="HS256")
+        return jsonify({"token": token, "user": user_data}), 200
+    else:
+        return jsonify({"error": "Authentication failed"}), 401
+
+if __name__ == "__main__":
+    app.run(debug=True)
 def create_app(config_name: str = None) -> Flask:
     """
     Flask application factory for Palace of Quests backend.
