@@ -3,7 +3,7 @@ Flask==3.1.1                     # Web framework
 Flask-SQLAlchemy==2.5.1          # Database ORM
 Flask-JWT-Extended==4.3.1        # JWT-based authentication
 Flask-Cors==6.0.0                # Enable CORS for API endpoints
-Flask-Migrate==4.0.4             # Database migrations
+Flask-Migrate==4.1.0             # Database migrations
 
 # Pi Network SDK (GitHub install)
 git+https://github.com/pi-apps/pi-platform-python.git@main#egg=pi-platform-python
