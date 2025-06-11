@@ -1,6 +1,6 @@
 # Flask Core
 Flask==3.1.1                     # Web framework
-Flask-SQLAlchemy==2.5.1          # Database ORM
+Flask-SQLAlchemy==3.1.1          # Database ORM
 Flask-JWT-Extended==4.3.1        # JWT-based authentication
 Flask-Cors==6.0.0                # Enable CORS for API endpoints
 Flask-Migrate==4.0.4             # Database migrations
