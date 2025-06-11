@@ -422,3 +422,20 @@ def cleanup_expired_transactions():
     
     db.session.commit()
     return len(expired_transactions)
+# models/transaction.py
+
+from app import db
+from datetime import datetime
+
+class Transaction(db.Model):
+    __tablename__ = 'transactions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    recipient_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_transactions')
+    recipient = db.relationship('User', foreign_keys=[recipient_id], backref='received_transactions')
