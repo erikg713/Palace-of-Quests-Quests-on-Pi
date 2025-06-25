@@ -12,7 +12,7 @@ git+https://github.com/pi-apps/pi-platform-python.git@main#egg=pi-platform-pytho
 psycopg2-binary==2.9.8           # PostgreSQL driver for Python
 
 # Security and Environment Management
-python-dotenv==0.19.0            # Manage environment variables
+python-dotenv==1.1.1            # Manage environment variables
 cryptography==44.0.1             # Encryption library for secure handling of secrets
 
 # Deployment
